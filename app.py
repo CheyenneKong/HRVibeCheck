@@ -4,6 +4,22 @@ from transformers import pipeline
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="HRVibeCheck", page_icon="👔")
 
+# --- LOAD MODELS (Outside main to cache them) ---
+@st.cache_resource
+def load_pipelines():
+    # Pipeline 1: Your Fine-tuned Grader (Path to the folder you saved in Colab)
+    # If deploying to Streamlit Cloud, you'll upload this folder to GitHub 
+    # or use your Hugging Face username/repo-name
+    grader_pipe = pipeline("text-classification", model="./hr_grader_model")
+    
+    # Pipeline 2: Information Extractor (NER)
+    # Using a pre-trained model to find names/orgs/skills
+    extractor_pipe = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
+    
+    return grader_pipe, extractor_pipe
+
+grader_pipe, extractor_pipe = load_pipelines()
+
 def main():
     st.title("👔 HRVibeCheck: Smart HR Assistant")
     st.markdown("""
@@ -20,31 +36,44 @@ def main():
 
     if st.sidebar.button("Run Vibe Check"):
         if resume_text:
-            # --- PIPELINE 1: Retention Score (The Fine-tuned Model) ---
-            # For now, we use a placeholder pre-trained model
             st.subheader(f"Analysis for {candidate_name}")
             
+            # --- PIPELINE 1: The Grader (Fine-tuned Model) ---
             with st.spinner('Calculating Retention Vibe...'):
-                # We will replace this with your fine-tuned model path later
-                retention_pipe = pipeline("text-classification", model="distilbert-base-uncased-finetuned-sst-2-english")
-                retention_result = retention_pipe(resume_text[:512]) # Truncate for BERT limits
+                # Truncate text to 512 tokens for BERT safety
+                retention_result = grader_pipe(resume_text[:512]) 
                 
-                label = retention_result[0]['label']
+                # In your model, LABEL_0 = Bad Fit, LABEL_1 = Good Fit (usually)
+                raw_label = retention_result[0]['label']
                 score = retention_result[0]['score']
                 
-                # Logic to map labels to your business case
-                status = "STABLE" if label == "POSITIVE" else "LEAVE RISK"
-                st.metric("Retention Stability Score", f"{score:.2%}", delta=status)
-
-            # --- PIPELINE 2: Work Match (Skill Extraction) ---
-            with st.spinner('Matching Skills...'):
-                # Using Zero-Shot as a second pipeline for matching
-                match_pipe = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
-                candidate_labels = ["Technical", "Managerial", "Creative", "Operational"]
-                match_result = match_pipe(resume_text, candidate_labels)
+                # Mapping your model's labels to business vibe
+                # If your model outputs "LABEL_1" for success:
+                if raw_label == "LABEL_1":
+                    status = "HIGH POTENTIAL"
+                    delta_color = "normal"
+                else:
+                    status = "MATCH RISK"
+                    delta_color = "inverse"
                 
-                st.write("### Work Match Analysis")
-                st.bar_chart({match_result['labels'][i]: match_result['scores'][i] for i in range(len(candidate_labels))})
+                st.metric("Fit Confidence Score", f"{score:.2%}", delta=status, delta_color=delta_color)
+
+            # --- PIPELINE 2: Extraction (Entity Recognition) ---
+            with st.spinner('Extracting Key Entities...'):
+                entities = extractor_pipe(resume_text)
+                
+                st.write("### Key Entities Found")
+                # Grouping entities for a cleaner look
+                orgs = list(set([ent['word'] for ent in entities if ent['entity_group'] == 'ORG']))
+                locs = list(set([ent['word'] for ent in entities if ent['entity_group'] == 'LOC']))
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("**Organizations/Universities:**")
+                    for org in orgs[:5]: st.write(f"- {org}")
+                with col2:
+                    st.write("**Locations:**")
+                    for loc in locs[:5]: st.write(f"- {loc}")
 
             st.success("Vibe Check Complete!")
             st.balloons()
