@@ -7,13 +7,10 @@ st.set_page_config(page_title="HRVibeCheck", page_icon="👔")
 # --- LOAD MODELS (Outside main to cache them) ---
 @st.cache_resource
 def load_pipelines():
-    # Pipeline 1: Your Fine-tuned Grader (Path to the folder you saved in Colab)
-    # If deploying to Streamlit Cloud, you'll upload this folder to GitHub 
-    # or use your Hugging Face username/repo-name
-    grader_pipe = pipeline("text-classification", model="./hr_grader_model")
+    # REPLACE "your-username/hr-vibe-grader" with your actual HF path
+    grader_pipe = pipeline("text-classification", model="Cheykong/HRVibeCheck")
     
-    # Pipeline 2: Information Extractor (NER)
-    # Using a pre-trained model to find names/orgs/skills
+    # This stays the same
     extractor_pipe = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
     
     return grader_pipe, extractor_pipe
