@@ -11,7 +11,7 @@ def load_pipelines():
     grader_pipe = pipeline("text-classification", model="Cheykong/HRVibeCheck")
     
     # This stays the same
-    extractor_pipe = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
+    extractor_pipe = pipeline("ner", model="distilbert-base-uncased", aggregation_strategy="simple")
     
     return grader_pipe, extractor_pipe
 
