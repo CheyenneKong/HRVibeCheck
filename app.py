@@ -3,15 +3,27 @@ from transformers import pipeline
 import PyPDF2
 from docx import Document
 import io
+import os
 
-# 1. Add this function at the top of app.py
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
+
+# Custom CSS for styling
+st.markdown("""
+    <style>
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e1e4e8; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- UTILITY FUNCTIONS ---
 def extract_text_from_file(uploaded_file):
+    """Extracts text from PDF or DOCX files."""
     try:
         if uploaded_file.type == "application/pdf":
             pdf_reader = PyPDF2.PdfReader(uploaded_file)
             text = ""
             for page in pdf_reader.pages:
-                text += page.extract_text()
+                text += page.extract_text() or ""
             return text
         elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             doc = Document(uploaded_file)
@@ -20,30 +32,66 @@ def extract_text_from_file(uploaded_file):
         st.error(f"Error reading file: {e}")
         return None
 
-# ... (Keep your load_pipelines code here) ...
+@st.cache_resource
+def load_pipelines():
+    """Loads the fine-tuned grader and the NER extractor."""
+    # Pipeline 1: Your Fine-tuned Model
+    # It will try to load locally first, then from HF Hub
+    model_path = "Cheykong/HRVibeCheck" 
+    grader_pipe = pipeline("text-classification", model=model_path)
+    
+    # Pipeline 2: NER (Named Entity Recognition)
+    extractor_pipe = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
+    
+    return grader_pipe, extractor_pipe
 
+# Load models
+grader_pipe, extractor_pipe = load_pipelines()
+
+# --- MAIN APP ---
 def main():
-    st.title("👔 HRVibeCheck")
-    
-    # 2. Update the Sidebar logic
-    st.sidebar.header("Step 1: Upload Resume")
-    uploaded_file = st.sidebar.file_uploader("Choose a PDF or Word file", type=["pdf", "docx"])
-    
-    # Initialize resume_text as empty
-    resume_text = ""
+    # Header Section
+    st.title("👔 HRVibeCheck: Smart HR Assistant")
+    st.caption("ISOM5240 L2 | Group Project: Cheyenne Kong & Janice Ho")
 
+    # --- SIDEBAR: INPUT ---
+    st.sidebar.header("📥 Input Sources")
+    candidate_name = st.sidebar.text_input("Candidate Name", "John Doe")
+    
+    # 1. File Uploader
+    uploaded_file = st.sidebar.file_uploader("Upload Resume (PDF/Word)", type=["pdf", "docx"])
+    
+    # 2. Text Area Fallback
+    manual_text = st.sidebar.text_area("Or Paste Resume Text Manually", height=200)
+
+    # Determine which text to use
+    resume_text = ""
     if uploaded_file is not None:
         resume_text = extract_text_from_file(uploaded_file)
-        if resume_text:
-            st.sidebar.success("File content extracted!")
-            # Optional: Show a preview of the extracted text
-            with st.sidebar.expander("View Extracted Text"):
-                st.write(resume_text[:500] + "...")
-    else:
-        # Fallback to manual text area if no file is uploaded
-        resume_text = st.sidebar.text_area("Or paste text manually", height=200)
+        st.sidebar.success("✅ File loaded successfully")
+    elif manual_text:
+        resume_text = manual_text
 
-    # 3. The Run Button
-    if st.sidebar.button("Run Vibe Check"):
-        if resume_text:
-            # ... (Your existing pipeline 1 and pipeline 2 code) ...
+    st.sidebar.divider()
+    run_button = st.sidebar.button("🚀 Run Vibe Check")
+
+    # --- MAIN DISPLAY ---
+    if run_button:
+        if not resume_text:
+            st.error("Please provide a resume by uploading a file or pasting text.")
+        else:
+            # --- PROCESSING ---
+            with st.status("Analyzing Candidate...", expanded=True) as status:
+                st.write("Running Fine-tuned Vibe Grader...")
+                # Pipeline 1 Result
+                retention_result = grader_pipe(resume_text[:512])[0] 
+                
+                st.write("Extracting Professional Entities...")
+                # Pipeline 2 Result
+                entities = extractor_pipe(resume_text)
+                status.update(label="Analysis Complete!", state="complete", expanded=False)
+
+            # --- RESULTS DASHBOARD ---
+            st.subheader(f"Analysis Results: {candidate_name}")
+            
+            tab1, tab2, tab3 = st.tabs(["🎯 Match
