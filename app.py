@@ -6,20 +6,19 @@ from docx import Document
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
 
-# Fixed CSS: Darker text and professional alert-style box
+# HR-Friendly Theme: Clean, Professional Blues
 st.markdown("""
     <style>
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e1e4e8; }
-    .logic-box { 
-        background-color: #f0f7ff; 
-        color: #1e3a8a; 
+    .hr-info-box { 
+        background-color: #f8fafc; 
+        color: #334155; 
         padding: 20px; 
         border-radius: 10px; 
-        border-left: 5px solid #2563eb;
+        border-left: 5px solid #0f172a;
         line-height: 1.6;
     }
-    .logic-box b { color: #1e3a8a; }
-    .logic-box li { color: #1e40af; }
+    .hr-info-box b { color: #0f172a; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -38,7 +37,9 @@ def extract_text_from_file(uploaded_file):
 
 @st.cache_resource
 def load_pipelines():
+    # Model 1: The "Vibe" Matcher
     grader_pipe = pipeline("text-classification", model="Cheykong/HRVibeCheck")
+    # Model 2: Key Info Extractor
     extractor_pipe = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
     return grader_pipe, extractor_pipe
 
@@ -46,91 +47,11 @@ grader_pipe, extractor_pipe = load_pipelines()
 
 def main():
     st.title("👔 HRVibeCheck: Smart HR Assistant")
-    st.caption("ISOM5240 L2 Group Project | Cheyenne Kong & Janice Ho")
+    st.caption("Advanced Candidate Matching Tool | ISOM5240 L2")
 
-    # --- METHODOLOGY SECTION (Color Fixed) ---
-    with st.expander("ℹ️ How the 'Vibe Check' Logic Works", expanded=True):
+    # --- HR-FRIENDLY METHODOLOGY ---
+    with st.expander("🔍 Understanding the Vibe Check Analysis", expanded=True):
         st.markdown("""
-        <div class="logic-box">
-        <b>Deep Learning Architecture:</b> This system utilizes a fine-tuned <b>DistilBERT</b> transformer model. 
-        Unlike simple keyword matching, the "Vibe Match Confidence" is calculated using:
-        <ul>
-            <li><b>Semantic Alignment:</b> The model analyzes the contextual relationship between the Resume and the Job Description (JD).</li>
-            <li><b>Sequence Classification:</b> Inputs are processed as a combined pair <code>[Resume] + [SEP] + [JD]</code> to capture fit.</li>
-            <li><b>Confidence Score:</b> A Softmax probability output reflecting the model's certainty in the classification.</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.divider()
-
-    # --- SIDEBAR INPUTS ---
-    st.sidebar.header("📁 Step 1: Candidate Data")
-    candidate_name = st.sidebar.text_input("Candidate Name", "John Doe")
-    uploaded_resume = st.sidebar.file_uploader("Upload Resume (PDF/Word)", type=["pdf", "docx"])
-    resume_manual = st.sidebar.text_area("Or Paste Resume Text", height=150)
-
-    st.sidebar.header("📝 Step 2: Job Requirements")
-    jd_text = st.sidebar.text_area("Paste Job Description (JD)", height=200, placeholder="Enter the job requirements here...")
-
-    resume_content = ""
-    if uploaded_resume:
-        resume_content = extract_text_from_file(uploaded_resume)
-    else:
-        resume_content = resume_manual
-
-    st.sidebar.divider()
-    run_button = st.sidebar.button("🚀 Run Vibe Check Analysis")
-
-    # --- MAIN ANALYSIS ---
-    if run_button:
-        if not resume_content or not jd_text:
-            st.warning("⚠️ Please provide both a Resume and a Job Description to proceed.")
-        else:
-            with st.status("Performing Deep Learning Analysis...", expanded=True) as status:
-                combined_input = f"Resume: {resume_content} [SEP] JD: {jd_text}"
-                st.write("Calculating Semantic Fit...")
-                retention_result = grader_pipe(combined_input[:512])[0]
-                st.write("Extracting Professional Entities...")
-                entities = extractor_pipe(resume_content)
-                status.update(label="Analysis Complete!", state="complete", expanded=False)
-
-            st.subheader(f"Dashboard: {candidate_name}")
-            tab1, tab2, tab3 = st.tabs(["🎯 Fit Analysis", "🔍 Entity Extraction", "📄 Source Text"])
-
-            with tab1:
-                label = retention_result['label']
-                score = retention_result['score']
-                is_high_vibe = (label == "LABEL_1")
-
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    st.metric(
-                        label="Vibe Match Confidence", 
-                        value=f"{score:.2%}", 
-                        delta="HIGH POTENTIAL" if is_high_vibe else "MATCH RISK",
-                        delta_color="normal" if is_high_vibe else "inverse"
-                    )
-                with col_m2:
-                    st.write("**Model Confidence Level**")
-                    st.progress(score)
-
-            with tab2:
-                orgs = sorted(list(set([e['word'] for e in entities if e['entity_group'] == 'ORG'])))
-                locs = sorted(list(set([e['word'] for e in entities if e['entity_group'] == 'LOC'])))
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.write("**Organizations**")
-                    for org in orgs[:5]: st.info(f"🏛️ {org}")
-                with c2:
-                    st.write("**Locations**")
-                    for loc in locs[:5]: st.success(f"📍 {loc}")
-
-            with tab3:
-                st.text_area("Resume Content", value=resume_content, height=200, disabled=True)
-                st.text_area("JD Content", value=jd_text, height=200, disabled=True)
-
-            st.balloons()
-
-if __name__ == "__main__":
-    main()
+        <div class="hr-info-box">
+        <b>How we assess 'Fit':</b> Unlike traditional keyword tools that just look for specific words, 
+        our AI uses <b>Contextual Intelligence</b>
