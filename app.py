@@ -6,11 +6,20 @@ from docx import Document
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
 
-# Custom CSS for UI polish
+# Fixed CSS: Darker text and professional alert-style box
 st.markdown("""
     <style>
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e1e4e8; }
-    .logic-box { background-color: #e8f0fe; padding: 20px; border-radius: 10px; border-left: 5px solid #4285f4; }
+    .logic-box { 
+        background-color: #f0f7ff; 
+        color: #1e3a8a; 
+        padding: 20px; 
+        border-radius: 10px; 
+        border-left: 5px solid #2563eb;
+        line-height: 1.6;
+    }
+    .logic-box b { color: #1e3a8a; }
+    .logic-box li { color: #1e40af; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -29,9 +38,7 @@ def extract_text_from_file(uploaded_file):
 
 @st.cache_resource
 def load_pipelines():
-    # Pipeline 1: Fine-tuned DistilBERT (The Grader)
     grader_pipe = pipeline("text-classification", model="Cheykong/HRVibeCheck")
-    # Pipeline 2: BERT NER (The Extractor)
     extractor_pipe = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
     return grader_pipe, extractor_pipe
 
@@ -41,16 +48,16 @@ def main():
     st.title("👔 HRVibeCheck: Smart HR Assistant")
     st.caption("ISOM5240 L2 Group Project | Cheyenne Kong & Janice Ho")
 
-    # --- METHODOLOGY SECTION ---
-    with st.expander("ℹ️ How the 'Vibe Check' Logic Works"):
+    # --- METHODOLOGY SECTION (Color Fixed) ---
+    with st.expander("ℹ️ How the 'Vibe Check' Logic Works", expanded=True):
         st.markdown("""
         <div class="logic-box">
         <b>Deep Learning Architecture:</b> This system utilizes a fine-tuned <b>DistilBERT</b> transformer model. 
-        Unlike keyword matching, the "Vibe Match Confidence" is based on:
+        Unlike simple keyword matching, the "Vibe Match Confidence" is calculated using:
         <ul>
-            <li><b>Semantic Alignment:</b> Comparing the contextual meaning of the Resume against the Job Description (JD).</li>
-            <li><b>Sequence Classification:</b> The model processes a combined string <code>[Resume] + [SEP] + [JD]</code> to calculate a probability score.</li>
-            <li><b>Confidence Score:</b> The percentage represents the model's Softmax probability that the candidate falls into the 'High Potential' category based on our training dataset.</li>
+            <li><b>Semantic Alignment:</b> The model analyzes the contextual relationship between the Resume and the Job Description (JD).</li>
+            <li><b>Sequence Classification:</b> Inputs are processed as a combined pair <code>[Resume] + [SEP] + [JD]</code> to capture fit.</li>
+            <li><b>Confidence Score:</b> A Softmax probability output reflecting the model's certainty in the classification.</li>
         </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -66,7 +73,6 @@ def main():
     st.sidebar.header("📝 Step 2: Job Requirements")
     jd_text = st.sidebar.text_area("Paste Job Description (JD)", height=200, placeholder="Enter the job requirements here...")
 
-    # Logic to get Resume Text
     resume_content = ""
     if uploaded_resume:
         resume_content = extract_text_from_file(uploaded_resume)
@@ -82,62 +88,12 @@ def main():
             st.warning("⚠️ Please provide both a Resume and a Job Description to proceed.")
         else:
             with st.status("Performing Deep Learning Analysis...", expanded=True) as status:
-                # 1. Prepare combined input for Pipeline 1
-                # Truncating to 512 tokens (BERT limit)
                 combined_input = f"Resume: {resume_content} [SEP] JD: {jd_text}"
-                
                 st.write("Calculating Semantic Fit...")
                 retention_result = grader_pipe(combined_input[:512])[0]
-                
                 st.write("Extracting Professional Entities...")
                 entities = extractor_pipe(resume_content)
                 status.update(label="Analysis Complete!", state="complete", expanded=False)
 
-            # --- RESULTS DASHBOARD ---
             st.subheader(f"Dashboard: {candidate_name}")
-            
-            tab1, tab2, tab3 = st.tabs(["🎯 Fit Analysis", "🔍 Entity Extraction", "📄 Processed Text"])
-
-            with tab1:
-                label = retention_result['label']
-                score = retention_result['score']
-                is_high_vibe = (label == "LABEL_1")
-
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    st.metric(
-                        label="Vibe Match Confidence", 
-                        value=f"{score:.2%}", 
-                        delta="HIGH POTENTIAL" if is_high_vibe else "MATCH RISK",
-                        delta_color="normal" if is_high_vibe else "inverse"
-                    )
-                with col_m2:
-                    st.write("**Model Confidence Level**")
-                    st.progress(score)
-                    st.write(f"The model is {score:.1%} confident in this classification.")
-
-            with tab2:
-                # Filter specific entities
-                orgs = sorted(list(set([e['word'] for e in entities if e['entity_group'] == 'ORG'])))
-                locs = sorted(list(set([e['word'] for e in entities if e['entity_group'] == 'LOC'])))
-                
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.write("**Organizations Identified**")
-                    if orgs:
-                        for org in orgs[:5]: st.info(f"🏛️ {org}")
-                    else: st.write("None found.")
-                with c2:
-                    st.write("**Locations Identified**")
-                    if locs:
-                        for loc in locs[:5]: st.success(f"📍 {loc}")
-                    else: st.write("None found.")
-
-            with tab3:
-                st.write("**Resume Content Used:**")
-                st.text_area("Read-only view", value=resume_content, height=200, disabled=True)
-
-            st.balloons()
-
-if __name__ == "__main__":
-    main()
+            tab1, tab2, tab3 = st.tabs(["🎯 Fit Analysis", "🔍 Entity Extraction", "📄
