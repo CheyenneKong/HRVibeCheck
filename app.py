@@ -94,4 +94,9 @@ def main():
             # --- RESULTS DASHBOARD ---
             st.subheader(f"Analysis Results: {candidate_name}")
             
-            tab1, tab2, tab3 = st.tabs(["🎯 Match
+            # Line 97 is right here:
+            tab1, tab2, tab3 = st.tabs(["🎯 Match Scoring", "🔍 Entity Extraction", "📄 Source Text"])
+
+            with tab1:
+                col1, col2 = st.columns(2)
+                # ... the rest of your logic ...
