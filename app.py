@@ -96,4 +96,41 @@ def main():
                 status.update(label="Analysis Complete!", state="complete", expanded=False)
 
             st.subheader(f"Dashboard: {candidate_name}")
-            tab1, tab2, tab3 = st.tabs(["🎯 Fit Analysis", "🔍 Entity Extraction", "📄
+            tab1, tab2, tab3 = st.tabs(["🎯 Fit Analysis", "🔍 Entity Extraction", "📄 Source Text"])
+
+            with tab1:
+                label = retention_result['label']
+                score = retention_result['score']
+                is_high_vibe = (label == "LABEL_1")
+
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    st.metric(
+                        label="Vibe Match Confidence", 
+                        value=f"{score:.2%}", 
+                        delta="HIGH POTENTIAL" if is_high_vibe else "MATCH RISK",
+                        delta_color="normal" if is_high_vibe else "inverse"
+                    )
+                with col_m2:
+                    st.write("**Model Confidence Level**")
+                    st.progress(score)
+
+            with tab2:
+                orgs = sorted(list(set([e['word'] for e in entities if e['entity_group'] == 'ORG'])))
+                locs = sorted(list(set([e['word'] for e in entities if e['entity_group'] == 'LOC'])))
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.write("**Organizations**")
+                    for org in orgs[:5]: st.info(f"🏛️ {org}")
+                with c2:
+                    st.write("**Locations**")
+                    for loc in locs[:5]: st.success(f"📍 {loc}")
+
+            with tab3:
+                st.text_area("Resume Content", value=resume_content, height=200, disabled=True)
+                st.text_area("JD Content", value=jd_text, height=200, disabled=True)
+
+            st.balloons()
+
+if __name__ == "__main__":
+    main()
