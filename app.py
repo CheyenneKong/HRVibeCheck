@@ -2,28 +2,16 @@ import streamlit as st
 from transformers import pipeline
 import PyPDF2
 from docx import Document
-import io
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
 
-# Custom CSS for styling
-st.markdown("""
-    <style>
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e1e4e8; }
-    </style>
-    """, unsafe_allow_html=True)
-
 # --- UTILITY FUNCTIONS ---
 def extract_text_from_file(uploaded_file):
-    """Extracts text from PDF or DOCX files."""
     try:
         if uploaded_file.type == "application/pdf":
             pdf_reader = PyPDF2.PdfReader(uploaded_file)
-            text = ""
-            for page in pdf_reader.pages:
-                text += page.extract_text() or ""
-            return text
+            return "".join([page.extract_text() or "" for page in pdf_reader.pages])
         elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             doc = Document(uploaded_file)
             return "\n".join([para.text for para in doc.paragraphs])
@@ -33,89 +21,76 @@ def extract_text_from_file(uploaded_file):
 
 @st.cache_resource
 def load_pipelines():
-    """Loads the fine-tuned grader and the NER extractor."""
-    # Pipeline 1: Your Fine-tuned Model from Hugging Face
-    model_path = "Cheykong/HRVibeCheck" 
-    grader_pipe = pipeline("text-classification", model=model_path)
-    
-    # Pipeline 2: NER (Standard Professional Entity Extraction)
+    # Pipeline 1: Your Fine-tuned Model
+    grader_pipe = pipeline("text-classification", model="Cheykong/HRVibeCheck")
+    # Pipeline 2: NER
     extractor_pipe = pipeline("ner", model="dslim/bert-base-NER", aggregation_strategy="simple")
-    
     return grader_pipe, extractor_pipe
 
-# Load models once
 grader_pipe, extractor_pipe = load_pipelines()
 
-# --- MAIN APP ---
 def main():
-    st.title("👔 HRVibeCheck: Smart HR Assistant")
-    st.caption("ISOM5240 L2 | Cheyenne Kong & Janice Ho")
-
-    # --- SIDEBAR: INPUT ---
-    st.sidebar.header("📥 Input Sources")
-    candidate_name = st.sidebar.text_input("Candidate Name", "John Doe")
+    st.title("👔 HRVibeCheck: Match Analysis")
     
-    uploaded_file = st.sidebar.file_uploader("Upload Resume (PDF/Word)", type=["pdf", "docx"])
-    manual_text = st.sidebar.text_area("Or Paste Resume Text Manually", height=200)
+    # --- SIDEBAR: TWO INPUTS ---
+    st.sidebar.header("1. The Candidate")
+    uploaded_resume = st.sidebar.file_uploader("Upload Resume", type=["pdf", "docx"])
+    resume_manual = st.sidebar.text_area("Or Paste Resume", height=150)
+    
+    st.sidebar.header("2. The Requirement")
+    jd_text = st.sidebar.text_area("Paste Job Description (JD) here", height=150, placeholder="What are you looking for?")
 
-    # Text Logic
-    resume_text = ""
-    if uploaded_file is not None:
-        resume_text = extract_text_from_file(uploaded_file)
-    elif manual_text:
-        resume_text = manual_text
+    # Extract Resume Text
+    resume_content = ""
+    if uploaded_resume:
+        resume_content = extract_text_from_file(uploaded_resume)
+    else:
+        resume_content = resume_manual
 
     st.sidebar.divider()
     run_button = st.sidebar.button("🚀 Run Vibe Check")
 
     # --- MAIN DISPLAY ---
     if run_button:
-        if not resume_text:
-            st.error("Please provide a resume by uploading a file or pasting text.")
+        if not resume_content or not jd_text:
+            st.error("Please provide both a Resume and a Job Description to compare.")
         else:
-            with st.status("Analyzing Candidate...", expanded=True) as status:
-                st.write("Running Vibe Grader...")
-                retention_result = grader_pipe(resume_text[:512])[0] 
+            with st.status("Comparing Resume to JD...", expanded=True) as status:
+                # COMBINE TEXT: This mimics your Colab training flow
+                # We put a separator so the model knows where the Resume ends and JD begins
+                combined_input = f"Resume: {resume_content} [SEP] JD: {jd_text}"
                 
-                st.write("Extracting Professional Entities...")
-                entities = extractor_pipe(resume_text)
-                status.update(label="Analysis Complete!", state="complete", expanded=False)
+                # Pipeline 1: The Grader
+                # Truncate to 512 for BERT safety
+                retention_result = grader_pipe(combined_input[:512])[0]
+                
+                # Pipeline 2: NER (Usually run on Resume only)
+                entities = extractor_pipe(resume_content)
+                status.update(label="Match Analysis Complete!", state="complete")
 
-            st.subheader(f"Analysis Results: {candidate_name}")
-            
-            # --- TABS (Fixed Syntax Here) ---
-            tab1, tab2, tab3 = st.tabs(["🎯 Match Scoring", "🔍 Entity Extraction", "📄 Source Text"])
+            # --- RESULTS ---
+            st.subheader("Match Analysis Results")
+            tab1, tab2 = st.tabs(["🎯 Match Score", "🔍 Entity Highlights"])
 
             with tab1:
-                col1, col2 = st.columns(2)
                 label = retention_result['label']
                 score = retention_result['score']
                 is_match = (label == "LABEL_1")
                 
+                col1, col2 = st.columns(2)
                 with col1:
-                    st.metric(label="Confidence", value=f"{score:.2%}", 
-                              delta="HIGH POTENTIAL" if is_match else "MATCH RISK", 
+                    st.metric("Vibe Match Confidence", f"{score:.2%}", 
+                              delta="GOOD FIT" if is_match else "POOR FIT",
                               delta_color="normal" if is_match else "inverse")
                 with col2:
-                    st.write("**Visual Match Score**")
+                    st.write("**Fit Visualizer**")
                     st.progress(score)
 
             with tab2:
+                # Group and display entities from resume
                 orgs = sorted(list(set([e['word'] for e in entities if e['entity_group'] == 'ORG'])))
-                locs = sorted(list(set([e['word'] for e in entities if e['entity_group'] == 'LOC'])))
-                
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.write("**Organizations Detected:**")
-                    for org in orgs[:8]: st.info(f"🏛️ {org}")
-                with c2:
-                    st.write("**Locations Detected:**")
-                    for loc in locs[:8]: st.success(f"📍 {loc}")
-
-            with tab3:
-                st.text_area("Extracted Content", value=resume_text, height=300)
-
-            st.balloons()
+                st.write("**Top Organizations in Resume:**")
+                st.info(", ".join(orgs[:10]) if orgs else "None detected")
 
 if __name__ == "__main__":
     main()
