@@ -15,10 +15,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# ==================== LOAD 3 PIPELINES ====================
+# ==================== LOAD PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_pipelines():
-    # Pipeline 1: Hire Recommendation
+    # Pipeline 1: Hire Recommendation (Your model)
     pipe1 = pipeline("text-classification", 
                     model="Cheykong/HRVibeCheck-Retention-Predictor", 
                     device=-1)
@@ -28,9 +28,9 @@ def load_pipelines():
                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
                     device=-1)
     
-    # Pipeline 3: Summarization (Lighter & More Stable Model)
+    # Pipeline 3: Simple Text Summarization (More stable model)
     pipe3 = pipeline("summarization", 
-                    model="sshleifer/distilbart-cnn-12-6",   # Much lighter than bart-large-cnn
+                    model="sshleifer/distilbart-cnn-12-6", 
                     device=-1)
     
     return pipe1, pipe2, pipe3
@@ -53,14 +53,13 @@ def main():
     st.title("👔 HRVibeCheck")
     st.caption("3-Pipeline AI Resume Screening System")
 
-    with st.expander("📘 About Our AI System", expanded=True):
+    with st.expander("📘 Our AI System", expanded=True):
         st.markdown("""
         - **Pipeline 1**: Hire Recommendation Score (Fine-tuned)  
-        - **Pipeline 2**: Automatic Skill Extraction  
+        - **Pipeline 2**: Skill Extraction  
         - **Pipeline 3**: Professional Resume Summarization
         """)
 
-    # Sidebar
     with st.sidebar:
         st.header("Candidate Information")
         candidate_name = st.text_input("Candidate Name", "John Doe")
@@ -78,7 +77,7 @@ def main():
         resume_text = manual_text
 
     if analyze_btn and resume_text:
-        with st.spinner("Running all 3 AI pipelines..."):
+        with st.spinner("Running all 3 pipelines..."):
             # Pipeline 1
             p1 = pipe1(resume_text[:512])[0]
             score = p1['score']
@@ -92,18 +91,15 @@ def main():
             top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
 
             # Pipeline 3 - Summarization
-            summary = pipe3(resume_text[:2000], max_length=160, min_length=50, do_sample=False)[0]['summary_text']
+            summary = pipe3(resume_text[:1800], max_length=160, min_length=50, do_sample=False)[0]['summary_text']
 
         st.success("✅ Full Analysis Complete!")
 
         col1, col2 = st.columns([1.2, 2])
         with col1:
-            st.metric(
-                label="**Hire Recommendation Score**",
-                value=f"{score:.1%}",
-                delta="Strong Hire" if is_strong else "Further Review",
-                delta_color="normal" if is_strong else "inverse"
-            )
+            st.metric("**Hire Recommendation Score**", f"{score:.1%}",
+                      delta="Strong Hire" if is_strong else "Further Review",
+                      delta_color="normal" if is_strong else "inverse")
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
