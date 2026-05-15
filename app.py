@@ -66,23 +66,11 @@ def main():
         st.header("Resume Input")
         
         uploaded_file = st.file_uploader("Upload PDF or Word File", type=["pdf", "docx"])
-        manual_text = st.text_area("Or paste resume text here", height=250, placeholder="Paste candidate resume text...")
+        manual_text = st.text_area("Or paste resume text here", height=250, 
+                                  placeholder="Paste candidate resume text...")
 
         st.divider()
-        
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            analyze_btn = st.button("🚀 Run Full Analysis", type="primary", use_container_width=True)
-        with col_btn2:
-            sample_btn = st.button("📋 Load Sample Resume", use_container_width=True)
-
-    # Load sample resume
-    if sample_btn:
-        manual_text = """Elena Rodriguez
-Senior Data Scientist | Machine Learning Engineer
-Hong Kong | (+852) 9876 5432 | elena.rodriguez@techmail.com
-
-Results-driven Senior Data Scientist with 8+ years experience building end-to-end ML solutions..."""
+        analyze_btn = st.button("🚀 Run Full Analysis", type="primary", use_container_width=True)
 
     if uploaded_file:
         resume_text = extract_text_from_file(uploaded_file)
@@ -91,19 +79,19 @@ Results-driven Senior Data Scientist with 8+ years experience building end-to-en
 
     if analyze_btn and resume_text:
         with st.spinner("🤖 Analyzing resume with 3 AI pipelines..."):
-            # Pipeline 1
+            # Pipeline 1: Hire Recommendation
             p1 = pipe1(resume_text[:512])[0]
             score = p1['score']
             is_strong = score > 0.55
 
-            # Pipeline 2: Skills
-            skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
+            # Pipeline 2: Top Skills
+            skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes",
                            "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
             p2 = pipe23(resume_text[:1000], skill_labels, multi_label=True)
             top_skills = [label for label, sc in zip(p2['labels'], p2['scores']) if sc > 0.35][:8]
 
             # Pipeline 3: Seniority
-            seniority_labels = ["Senior Level (5+ years)", "Mid Level (2-5 years)", 
+            seniority_labels = ["Senior Level (5+ years)", "Mid Level (2-5 years)",
                                "Junior Level (0-2 years)", "Entry Level / Fresh Graduate"]
             p3 = pipe23(resume_text[:1500], seniority_labels, multi_label=False)
             predicted_level = p3['labels'][0]
@@ -126,6 +114,8 @@ Results-driven Senior Data Scientist with 8+ years experience building end-to-en
                 cols = st.columns(4)
                 for i, skill in enumerate(top_skills):
                     cols[i % 4].markdown(f"<span class='skill-pill'>{skill}</span>", unsafe_allow_html=True)
+            else:
+                st.info("No strong skills detected.")
 
             st.divider()
             st.subheader("📊 Candidate Seniority / Experience Level")
