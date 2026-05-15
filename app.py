@@ -7,10 +7,9 @@ import pandas as pd
 
 st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
 
-# Modern Dark-Friendly Styling
 st.markdown("""
     <style>
-    .stMetric { background-color: #1e2937; padding: 20px; border-radius: 12px; }
+    .stMetric { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .big-number { font-size: 3.8rem !important; font-weight: bold; }
     .skill-pill { background-color: #3b82f6; color: white; padding: 8px 18px; 
                   border-radius: 25px; margin: 4px; display: inline-block; font-weight: 500; }
@@ -45,13 +44,15 @@ def extract_text_from_file(uploaded_file):
 
 def main():
     st.title("👔 HRVibeCheck")
-    st.caption("AI-Powered Resume Screening • Retention + Skills Intelligence")
+    st.caption("AI-Powered Resume Screening • Hire Recommendation + Skills Intelligence")
 
-    with st.expander("📘 What is Retention Probability?", expanded=True):
+    with st.expander("📘 What is Hire Recommendation Score?", expanded=True):
         st.markdown("""
-        **Retention Probability** is our AI’s prediction of how likely a candidate will **stay long-term** and succeed in the role.  
-        It was trained on real historical hiring decisions (Hire vs Reject).  
-        **Higher score = Higher predicted retention & better overall fit.**
+        **Hire Recommendation Score** is our AI’s prediction of how likely a candidate is to be a **strong hire**.
+
+        - The model was trained on real historical hiring decisions (**Hire vs Reject**).
+        - It learns patterns from candidates who were selected versus those who were rejected.
+        - **Higher score = Higher predicted success & better overall fit** for the role.
         """)
 
     # Sidebar
@@ -77,11 +78,9 @@ def main():
             score = ret_result['score']
             is_strong = score > 0.55
 
-            # Improved skill detection
-            skill_labels = ["Python", "Java", "SQL", "Machine Learning", "AWS", "Docker", 
-                           "Kubernetes", "Leadership", "Project Management", "Data Analysis", 
-                           "PyTorch", "Communication", "Excel", "Power BI"]
-            skill_result = skill_pipe(resume_text[:1200], skill_labels, multi_label=True)
+            skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
+                           "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
+            skill_result = skill_pipe(resume_text[:1000], skill_labels, multi_label=True)
             
             skills_df = pd.DataFrame({
                 "Skill": skill_result['labels'],
@@ -94,15 +93,15 @@ def main():
         
         with col1:
             st.metric(
-                label="**Retention Probability**",
+                label="**Hire Recommendation Score**",
                 value=f"{score:.1%}",
-                delta="Strong Hire Potential" if is_strong else "Further Review Recommended",
+                delta="Strong Hire Recommendation" if is_strong else "Further Review Recommended",
                 delta_color="normal" if is_strong else "inverse"
             )
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
-            top_skills = skills_df[skills_df['Confidence'] > 0.35].head(12)
+            top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
             if not top_skills.empty:
                 cols = st.columns(4)
                 for i, row in enumerate(top_skills.itertuples()):
@@ -112,7 +111,6 @@ def main():
 
         st.divider()
 
-        # Better Resume Preview
         st.subheader("📄 Resume Preview")
         st.markdown(f"""
         <div class="resume-box">
