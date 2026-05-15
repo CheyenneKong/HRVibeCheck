@@ -6,7 +6,6 @@ import pandas as pd
 
 st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
 
-# ==================== ENHANCED STYLING ====================
 st.markdown("""
     <style>
     .main-header { font-size: 2.8rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0; }
@@ -15,7 +14,6 @@ st.markdown("""
     .skill-pill { background-color: #3b82f6; color: white; padding: 10px 20px; border-radius: 30px; margin: 5px; display: inline-block; font-weight: 500; }
     .seniority-box { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 20px; border-radius: 16px; font-size: 1.15em; font-weight: 600; }
     .resume-box { background-color: #0f172a; color: #e2e8f0; padding: 28px; border-radius: 16px; line-height: 1.85; border-left: 5px solid #64748b; }
-    .section-header { font-size: 1.4rem; font-weight: 600; color: #1e40af; margin: 20px 0 10px 0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -54,7 +52,7 @@ def main():
         st.markdown("""
         **Hire Recommendation Score** (0–100%) represents our AI’s confidence in recommending a candidate for hire.
 
-        **How it is calculated**: Fine-tuned on real historical hiring decisions (`Hire` vs `Reject`).  
+        **How it is calculated**: The model was fine-tuned on real historical hiring decisions (`Hire` vs `Reject`).  
         **Score Interpretation**:
         | Score Range     | Recommendation       | Meaning |
         |-----------------|----------------------|--------|
@@ -65,15 +63,26 @@ def main():
         """)
 
     with st.sidebar:
-        st.header("Candidate Information")
-        candidate_name = st.text_input("Candidate Name", "John Doe")
+        st.header("Resume Input")
         
-        st.subheader("Resume")
-        uploaded_file = st.file_uploader("Upload PDF or Word", type=["pdf", "docx"])
-        manual_text = st.text_area("Or paste resume text", height=220)
+        uploaded_file = st.file_uploader("Upload PDF or Word File", type=["pdf", "docx"])
+        manual_text = st.text_area("Or paste resume text here", height=250, placeholder="Paste candidate resume text...")
 
         st.divider()
-        analyze_btn = st.button("🚀 Run Full Analysis", type="primary", use_container_width=True)
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            analyze_btn = st.button("🚀 Run Full Analysis", type="primary", use_container_width=True)
+        with col_btn2:
+            sample_btn = st.button("📋 Load Sample Resume", use_container_width=True)
+
+    # Load sample resume
+    if sample_btn:
+        manual_text = """Elena Rodriguez
+Senior Data Scientist | Machine Learning Engineer
+Hong Kong | (+852) 9876 5432 | elena.rodriguez@techmail.com
+
+Results-driven Senior Data Scientist with 8+ years experience building end-to-end ML solutions..."""
 
     if uploaded_file:
         resume_text = extract_text_from_file(uploaded_file)
@@ -102,11 +111,10 @@ def main():
 
         st.success("✅ Analysis Complete!")
 
-        # Main Results in Tabs
-        tab1, tab2, tab3 = st.tabs(["📊 Overall Assessment", "🔑 Skills & Seniority", "📄 Resume Preview"])
+        tab1, tab2, tab3 = st.tabs(["📊 Assessment", "🔑 Skills & Seniority", "📄 Resume"])
 
         with tab1:
-            col1, col2 = st.columns([1, 1])
+            col1, col2 = st.columns(2)
             with col1:
                 st.metric("**Hire Recommendation Score**", f"{score:.1%}",
                           delta="Strong Hire" if is_strong else "Further Review",
@@ -118,8 +126,6 @@ def main():
                 cols = st.columns(4)
                 for i, skill in enumerate(top_skills):
                     cols[i % 4].markdown(f"<span class='skill-pill'>{skill}</span>", unsafe_allow_html=True)
-            else:
-                st.info("No strong skills detected.")
 
             st.divider()
             st.subheader("📊 Candidate Seniority / Experience Level")
@@ -135,7 +141,7 @@ def main():
             st.markdown(f"<div class='resume-box'>{resume_text}</div>", unsafe_allow_html=True)
 
     elif analyze_btn:
-        st.warning("Please provide resume content.")
+        st.warning("Please upload a file or paste resume text.")
 
 if __name__ == "__main__":
     main()
