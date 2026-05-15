@@ -2,7 +2,6 @@ import streamlit as st
 from transformers import pipeline
 import PyPDF2
 from docx import Document
-import plotly.express as px
 import pandas as pd
 
 st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
@@ -11,8 +10,7 @@ st.markdown("""
     <style>
     .stMetric { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .skill-pill { background-color: #3b82f6; color: white; padding: 8px 18px; border-radius: 25px; margin: 4px; display: inline-block; }
-    .strength-pill { background-color: #10b981; color: white; padding: 8px 18px; border-radius: 25px; margin: 4px; display: inline-block; }
-    .redflag-pill { background-color: #ef4444; color: white; padding: 8px 18px; border-radius: 25px; margin: 4px; display: inline-block; }
+    .seniority-box { background-color: #6366f1; color: white; padding: 15px; border-radius: 10px; font-weight: bold; }
     .resume-box { background-color: #0f172a; color: #e2e8f0; padding: 25px; border-radius: 12px; line-height: 1.8; }
     </style>
     """, unsafe_allow_html=True)
@@ -28,7 +26,7 @@ def load_pipelines():
                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
                     device=-1)
     
-    # Pipeline 3 uses the same reliable model
+    # Pipeline 3: Seniority / Experience Level
     pipe3 = pipeline("zero-shot-classification", 
                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
                     device=-1)
@@ -84,8 +82,8 @@ def main():
         resume_text = manual_text
 
     if analyze_btn and resume_text:
-        with st.spinner("Analyzing resume with 3 pipelines..."):
-            # Pipeline 1: Hire Score
+        with st.spinner("Analyzing resume..."):
+            # Pipeline 1: Hire Recommendation
             p1 = pipe1(resume_text[:512])[0]
             score = p1['score']
             is_strong = score > 0.55
@@ -94,22 +92,16 @@ def main():
             skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
                            "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
             p2 = pipe2(resume_text[:1000], skill_labels, multi_label=True)
-            skills_df = pd.DataFrame({"Skill": p2['labels'], "Confidence": p2['scores']})
-            top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
+            top_skills = [label for label, sc in zip(p2['labels'], p2['scores']) if sc > 0.35][:8]
 
-            # Pipeline 3: Strengths & Red Flags
-            strength_labels = ["Strong Leadership", "Technical Expertise", "Stable Career", 
-                              "Fast Learner", "Results Driven", "Good Communication"]
-            redflag_labels = ["Job Hopping", "Career Gaps", "Lack of Experience", 
-                             "Irrelevant Background", "Weak Technical Skills"]
+            # Pipeline 3: Candidate Seniority / Experience Level
+            seniority_labels = ["Senior Level (7+ years)", "Mid Level (3-6 years)", 
+                               "Junior Level (0-2 years)", "Entry Level / Fresh Graduate"]
+            p3 = pipe3(resume_text[:1500], seniority_labels, multi_label=False)
+            predicted_seniority = p3['labels'][0]
+            confidence = p3['scores'][0]
 
-            p3_strength = pipe3(resume_text[:1200], strength_labels, multi_label=True)
-            p3_redflag = pipe3(resume_text[:1200], redflag_labels, multi_label=True)
-
-            top_strengths = [label for label, score in zip(p3_strength['labels'], p3_strength['scores']) if score > 0.4][:5]
-            top_redflags = [label for label, score in zip(p3_redflag['labels'], p3_redflag['scores']) if score > 0.35][:4]
-
-        st.success("✅ Full Analysis Complete!")
+        st.success("✅ Analysis Complete!")
 
         col1, col2 = st.columns([1.2, 2])
         with col1:
@@ -119,29 +111,15 @@ def main():
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
-            if not top_skills.empty:
-                cols = st.columns(4)
-                for i, row in enumerate(top_skills.itertuples()):
-                    cols[i % 4].markdown(f"<span class='skill-pill'>{row.Skill}</span>", unsafe_allow_html=True)
+            if top_skills:
+                for skill in top_skills:
+                    st.markdown(f"<span class='skill-pill'>{skill}</span>", unsafe_allow_html=True)
 
         st.divider()
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("✅ Key Strengths")
-            if top_strengths:
-                for s in top_strengths:
-                    st.markdown(f"<span class='strength-pill'>{s}</span>", unsafe_allow_html=True)
-            else:
-                st.write("No major strengths detected.")
-
-        with c2:
-            st.subheader("⚠️ Potential Red Flags")
-            if top_redflags:
-                for r in top_redflags:
-                    st.markdown(f"<span class='redflag-pill'>{r}</span>", unsafe_allow_html=True)
-            else:
-                st.success("No major red flags detected.")
+        st.subheader("📊 Candidate Seniority / Experience Level")
+        st.markdown(f"<div class='seniority-box'>Predicted Level: {predicted_seniority} ({confidence:.1%} confidence)</div>", 
+                   unsafe_allow_html=True)
 
         st.divider()
         st.subheader("📄 Resume Preview")
