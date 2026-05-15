@@ -15,19 +15,27 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# ==================== LOAD 3 PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_pipelines():
+    # Pipeline 1: Hire Recommendation
     pipe1 = pipeline("text-classification", 
                     model="Cheykong/HRVibeCheck-Retention-Predictor", 
                     device=-1)
     
+    # Pipeline 2: Skill Extraction
     pipe2 = pipeline("zero-shot-classification", 
                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
                     device=-1)
     
-    return pipe1, pipe2
+    # Pipeline 3: Summarization (Strong & Stable)
+    pipe3 = pipeline("summarization", 
+                    model="google-t5/t5-small", 
+                    device=-1)
+    
+    return pipe1, pipe2, pipe3
 
-pipe1, pipe2 = load_pipelines()
+pipe1, pipe2, pipe3 = load_pipelines()
 
 def extract_text_from_file(uploaded_file):
     try:
@@ -43,22 +51,13 @@ def extract_text_from_file(uploaded_file):
 
 def main():
     st.title("👔 HRVibeCheck")
-    st.caption("AI-Powered Resume Screening • Hire Recommendation + Skills Intelligence")
+    st.caption("3-Pipeline AI Resume Screening System")
 
-    with st.expander("📘 What is Hire Recommendation Score?", expanded=True):
+    with st.expander("📘 Our AI System", expanded=True):
         st.markdown("""
-        **Hire Recommendation Score** (0–100%) represents our AI’s confidence in recommending a candidate for hire.
-
-        **How it is calculated**:  
-        The model was fine-tuned on real historical hiring decisions (`Hire` vs `Reject`). It analyzes the resume and compares it against patterns of previously successful candidates.
-
-        **Score Interpretation**:
-        | Score Range     | Recommendation          | Meaning |
-        |-----------------|-------------------------|--------|
-        | **75% – 100%**  | **Strong Hire**         | Excellent fit. High confidence of success. |
-        | **60% – 74%**   | **Good Hire**           | Solid candidate. Worth interviewing. |
-        | **45% – 59%**   | **Moderate Fit**        | Potential, but needs further evaluation. |
-        | **Below 45%**   | **Further Review**      | High risk. Not recommended at this stage. |
+        - **Pipeline 1**: Hire Recommendation Score (Fine-tuned)  
+        - **Pipeline 2**: Automatic Skill Extraction  
+        - **Pipeline 3**: Professional Resume Summarization (T5-Small)
         """)
 
     with st.sidebar:
@@ -70,7 +69,7 @@ def main():
         manual_text = st.text_area("Or paste resume text", height=180)
 
         st.divider()
-        analyze_btn = st.button("🚀 Analyze Candidate", type="primary", use_container_width=True)
+        analyze_btn = st.button("🚀 Run Full Analysis", type="primary", use_container_width=True)
 
     if uploaded_file:
         resume_text = extract_text_from_file(uploaded_file)
@@ -78,27 +77,29 @@ def main():
         resume_text = manual_text
 
     if analyze_btn and resume_text:
-        with st.spinner("Analyzing resume..."):
+        with st.spinner("Running all 3 AI pipelines..."):
+            # Pipeline 1
             p1 = pipe1(resume_text[:512])[0]
             score = p1['score']
             is_strong = score > 0.55
 
+            # Pipeline 2 - Skills
             skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
                            "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
             p2 = pipe2(resume_text[:1000], skill_labels, multi_label=True)
             skills_df = pd.DataFrame({"Skill": p2['labels'], "Confidence": p2['scores']})
             top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
 
-        st.success("✅ Analysis Complete!")
+            # Pipeline 3 - Summarization
+            summary = pipe3(resume_text[:1500], max_length=180, min_length=60, do_sample=False)[0]['summary_text']
+
+        st.success("✅ Full Analysis Complete!")
 
         col1, col2 = st.columns([1.2, 2])
         with col1:
-            st.metric(
-                label="**Hire Recommendation Score**",
-                value=f"{score:.1%}",
-                delta="Strong Hire" if is_strong else "Further Review",
-                delta_color="normal" if is_strong else "inverse"
-            )
+            st.metric("**Hire Recommendation Score**", f"{score:.1%}",
+                      delta="Strong Hire" if is_strong else "Further Review",
+                      delta_color="normal" if is_strong else "inverse")
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
@@ -110,7 +111,11 @@ def main():
                 st.info("No strong skills detected.")
 
         st.divider()
-        st.subheader("📄 Resume Preview")
+        st.subheader("📝 AI Professional Summary")
+        st.info(summary)
+
+        st.divider()
+        st.subheader("📄 Original Resume")
         st.markdown(f"<div class='resume-box'>{resume_text}</div>", unsafe_allow_html=True)
 
     elif analyze_btn:
