@@ -44,9 +44,8 @@ def main():
 
     with st.expander("📘 What is Retention Probability?", expanded=False):
         st.markdown("""
-        **Retention Probability** is our AI’s prediction of how likely a candidate is to **stay long-term** and succeed in the role.  
-        It is trained on real historical hiring decisions (Hire vs Reject).  
-        Higher score = Higher predicted retention & better overall fit.
+        **Retention Probability** is our AI’s prediction of how likely a candidate will **stay long-term** and succeed in the role.  
+        It was trained on real historical hiring decisions (Hire vs Reject).
         """)
 
     # Sidebar
@@ -68,12 +67,10 @@ def main():
 
     if analyze_btn and resume_text:
         with st.spinner("Analyzing with AI..."):
-            # Pipeline 1
             ret_result = retention_pipe(resume_text[:512])[0]
             score = ret_result['score']
             is_strong = score > 0.55
 
-            # Pipeline 2
             skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
                            "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
             skill_result = skill_pipe(resume_text[:1000], skill_labels, multi_label=True)
@@ -85,9 +82,7 @@ def main():
 
         st.success("✅ Analysis Complete!")
 
-        # ==================== MAIN RESULTS ====================
         col1, col2 = st.columns([1, 2])
-        
         with col1:
             st.metric(
                 label="**Retention Probability**",
@@ -103,11 +98,17 @@ def main():
                 fig = px.bar(top_skills, x="Skill", y="Confidence", 
                             text_auto='.1%', color="Confidence",
                             color_continuous_scale="Blues")
-                fig.update_layout(height=380, xaxis_title="", yaxis_title="Confidence Score")
+                fig.update_layout(height=380, xaxis_title="", yaxis_title="Confidence")
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("No strong skills matched.")
+                st.info("No strong skills detected.")
 
         st.divider()
+        with st.expander("📄 Resume Preview", expanded=False):
+            st.write(resume_text[:1500] + "..." if len(resume_text) > 1500 else resume_text)
 
-        with st.expander("📄 Resume Preview
+    elif analyze_btn:
+        st.warning("Please provide resume content.")
+
+if __name__ == "__main__":
+    main()
