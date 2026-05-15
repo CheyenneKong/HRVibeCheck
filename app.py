@@ -15,10 +15,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# ==================== LOAD PIPELINES ====================
+# ==================== LOAD PIPELINES SAFELY ====================
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_pipelines():
-    # Pipeline 1: Hire Recommendation (Your model)
+    # Pipeline 1: Hire Recommendation
     pipe1 = pipeline("text-classification", 
                     model="Cheykong/HRVibeCheck-Retention-Predictor", 
                     device=-1)
@@ -28,10 +28,13 @@ def load_pipelines():
                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
                     device=-1)
     
-    # Pipeline 3: Simple Text Summarization (More stable model)
-    pipe3 = pipeline("summarization", 
-                    model="sshleifer/distilbart-cnn-12-6", 
-                    device=-1)
+    # Pipeline 3: Summarization with fallback
+    try:
+        pipe3 = pipeline("summarization", 
+                        model="sshleifer/distilbart-cnn-12-6", 
+                        device=-1)
+    except:
+        pipe3 = None  # Safe fallback if summarization fails to load
     
     return pipe1, pipe2, pipe3
 
@@ -56,7 +59,7 @@ def main():
     with st.expander("📘 Our AI System", expanded=True):
         st.markdown("""
         - **Pipeline 1**: Hire Recommendation Score (Fine-tuned)  
-        - **Pipeline 2**: Skill Extraction  
+        - **Pipeline 2**: Automatic Skill Extraction  
         - **Pipeline 3**: Professional Resume Summarization
         """)
 
@@ -90,8 +93,11 @@ def main():
             skills_df = pd.DataFrame({"Skill": p2['labels'], "Confidence": p2['scores']})
             top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
 
-            # Pipeline 3 - Summarization
-            summary = pipe3(resume_text[:1800], max_length=160, min_length=50, do_sample=False)[0]['summary_text']
+            # Pipeline 3 - Summarization with fallback
+            if pipe3:
+                summary = pipe3(resume_text[:1800], max_length=160, min_length=50, do_sample=False)[0]['summary_text']
+            else:
+                summary = "Professional summary generation is temporarily unavailable."
 
         st.success("✅ Full Analysis Complete!")
 
@@ -107,6 +113,8 @@ def main():
                 cols = st.columns(4)
                 for i, row in enumerate(top_skills.itertuples()):
                     cols[i % 4].markdown(f"<span class='skill-pill'>{row.Skill}</span>", unsafe_allow_html=True)
+            else:
+                st.info("No strong skills detected.")
 
         st.divider()
         st.subheader("📝 AI Professional Summary")
