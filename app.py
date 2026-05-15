@@ -10,25 +10,32 @@ st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
 st.markdown("""
     <style>
     .stMetric { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .big-number { font-size: 3.8rem !important; font-weight: bold; }
-    .skill-pill { background-color: #3b82f6; color: white; padding: 8px 18px; 
-                  border-radius: 25px; margin: 4px; display: inline-block; font-weight: 500; }
-    .resume-box { background-color: #0f172a; color: #e2e8f0; padding: 25px; 
-                  border-radius: 12px; line-height: 1.8; white-space: pre-wrap; }
+    .skill-pill { background-color: #3b82f6; color: white; padding: 8px 18px; border-radius: 25px; margin: 4px; display: inline-block; }
+    .resume-box { background-color: #0f172a; color: #e2e8f0; padding: 25px; border-radius: 12px; line-height: 1.8; }
     </style>
     """, unsafe_allow_html=True)
 
+# ==================== LOAD ALL 3 PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_pipelines():
-    retention_pipe = pipeline("text-classification", 
-                             model="Cheykong/HRVibeCheck-Retention-Predictor", 
-                             device=-1)
-    skill_pipe = pipeline("zero-shot-classification", 
-                         model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
-                         device=-1)
-    return retention_pipe, skill_pipe
+    # Pipeline 1: Hire Recommendation (Fine-tuned)
+    pipe1 = pipeline("text-classification", 
+                    model="Cheykong/HRVibeCheck-Retention-Predictor", 
+                    device=-1)
+    
+    # Pipeline 2: Skill Extraction
+    pipe2 = pipeline("zero-shot-classification", 
+                    model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
+                    device=-1)
+    
+    # Pipeline 3: Resume Summarization
+    pipe3 = pipeline("summarization", 
+                    model="facebook/bart-large-cnn", 
+                    device=-1)
+    
+    return pipe1, pipe2, pipe3
 
-retention_pipe, skill_pipe = load_pipelines()
+pipe1, pipe2, pipe3 = load_pipelines()
 
 def extract_text_from_file(uploaded_file):
     try:
@@ -44,15 +51,13 @@ def extract_text_from_file(uploaded_file):
 
 def main():
     st.title("👔 HRVibeCheck")
-    st.caption("AI-Powered Resume Screening • Hire Recommendation + Skills Intelligence")
+    st.caption("3-Pipeline AI Resume Screening System")
 
-    with st.expander("📘 What is Hire Recommendation Score?", expanded=True):
+    with st.expander("📘 About Our AI System", expanded=True):
         st.markdown("""
-        **Hire Recommendation Score** is our AI’s prediction of how likely a candidate is to be a **strong hire**.
-
-        - The model was trained on real historical hiring decisions (**Hire vs Reject**).
-        - It learns patterns from candidates who were selected versus those who were rejected.
-        - **Higher score = Higher predicted success & better overall fit** for the role.
+        - **Pipeline 1**: Hire Recommendation Score (Fine-tuned Model)  
+        - **Pipeline 2**: Automatic Skill Extraction  
+        - **Pipeline 3**: Professional Resume Summarization
         """)
 
     # Sidebar
@@ -65,7 +70,7 @@ def main():
         manual_text = st.text_area("Or paste resume text", height=180)
 
         st.divider()
-        analyze_btn = st.button("🚀 Analyze Candidate", type="primary", use_container_width=True)
+        analyze_btn = st.button("🚀 Run Full Analysis", type="primary", use_container_width=True)
 
     if uploaded_file:
         resume_text = extract_text_from_file(uploaded_file)
@@ -73,50 +78,50 @@ def main():
         resume_text = manual_text
 
     if analyze_btn and resume_text:
-        with st.spinner("Analyzing resume with AI..."):
-            ret_result = retention_pipe(resume_text[:512])[0]
-            score = ret_result['score']
+        with st.spinner("Running all 3 AI pipelines..."):
+            # Pipeline 1
+            p1_result = pipe1(resume_text[:512])[0]
+            score = p1_result['score']
             is_strong = score > 0.55
 
+            # Pipeline 2 - Skills
             skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
-                           "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
-            skill_result = skill_pipe(resume_text[:1000], skill_labels, multi_label=True)
-            
-            skills_df = pd.DataFrame({
-                "Skill": skill_result['labels'],
-                "Confidence": skill_result['scores']
-            }).sort_values("Confidence", ascending=False)
+                           "Leadership", "Project Management", "Data Analysis", "PyTorch"]
+            p2_result = pipe2(resume_text[:1000], skill_labels, multi_label=True)
+            skills_df = pd.DataFrame({"Skill": p2_result['labels'], "Confidence": p2_result['scores']})
+            top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
 
-        st.success("✅ Analysis Complete!")
+            # Pipeline 3 - Summarization
+            summary = pipe3(resume_text[:2000], max_length=180, min_length=60, do_sample=False)[0]['summary_text']
 
-        col1, col2 = st.columns([1.1, 2])
-        
+        st.success("✅ Full Analysis Complete!")
+
+        # Results Layout
+        col1, col2 = st.columns([1.2, 2])
         with col1:
             st.metric(
                 label="**Hire Recommendation Score**",
                 value=f"{score:.1%}",
-                delta="Strong Hire Recommendation" if is_strong else "Further Review Recommended",
+                delta="Strong Hire" if is_strong else "Further Review",
                 delta_color="normal" if is_strong else "inverse"
             )
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
-            top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
             if not top_skills.empty:
                 cols = st.columns(4)
                 for i, row in enumerate(top_skills.itertuples()):
                     cols[i % 4].markdown(f"<span class='skill-pill'>{row.Skill}</span>", unsafe_allow_html=True)
-            else:
-                st.info("No strong skills detected from our skill database.")
 
         st.divider()
 
-        st.subheader("📄 Resume Preview")
-        st.markdown(f"""
-        <div class="resume-box">
-        {resume_text}
-        </div>
-        """, unsafe_allow_html=True)
+        # Pipeline 3 Result
+        st.subheader("📝 AI-Generated Professional Summary")
+        st.info(summary)
+
+        st.divider()
+        st.subheader("📄 Original Resume")
+        st.markdown(f"<div class='resume-box'>{resume_text}</div>", unsafe_allow_html=True)
 
     elif analyze_btn:
         st.warning("Please provide resume content.")
