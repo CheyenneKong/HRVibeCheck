@@ -9,8 +9,9 @@ st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
 
 st.markdown("""
     <style>
-    .stMetric { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .hr-card { background-color: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .big-metric { font-size: 3.5rem !important; font-weight: bold; }
+    .stMetric { background-color: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .skill-pill { background-color: #0f172a; color: white; padding: 8px 16px; border-radius: 20px; margin: 4px; display: inline-block; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -40,12 +41,13 @@ def extract_text_from_file(uploaded_file):
 
 def main():
     st.title("👔 HRVibeCheck")
-    st.caption("AI-Powered Resume Screening • Retention + Skills Intelligence")
+    st.caption("AI-Powered Resume Screening • Retention Prediction + Skills Intelligence")
 
-    with st.expander("📘 What is Retention Probability?", expanded=False):
+    with st.expander("📘 What is Retention Probability?", expanded=True):
         st.markdown("""
         **Retention Probability** is our AI’s prediction of how likely a candidate will **stay long-term** and succeed in the role.  
-        It was trained on real historical hiring decisions (Hire vs Reject).
+        It was trained on real historical hiring decisions (Hire vs Reject).  
+        **Higher score = Higher predicted retention & better overall fit.**
         """)
 
     # Sidebar
@@ -55,7 +57,7 @@ def main():
         
         st.subheader("Resume")
         uploaded_file = st.file_uploader("Upload PDF or Word", type=["pdf", "docx"])
-        manual_text = st.text_area("Or paste resume text", height=200)
+        manual_text = st.text_area("Or paste resume text", height=180)
 
         st.divider()
         analyze_btn = st.button("🚀 Analyze Candidate", type="primary", use_container_width=True)
@@ -66,7 +68,7 @@ def main():
         resume_text = manual_text
 
     if analyze_btn and resume_text:
-        with st.spinner("Analyzing with AI..."):
+        with st.spinner("Analyzing resume..."):
             ret_result = retention_pipe(resume_text[:512])[0]
             score = ret_result['score']
             is_strong = score > 0.55
@@ -82,30 +84,34 @@ def main():
 
         st.success("✅ Analysis Complete!")
 
-        col1, col2 = st.columns([1, 2])
+        # Main Display
+        col1, col2 = st.columns([1.2, 2])
+        
         with col1:
-            st.metric(
-                label="**Retention Probability**",
-                value=f"{score:.1%}",
-                delta="Strong Hire Potential" if is_strong else "Further Review Recommended",
-                delta_color="normal" if is_strong else "inverse"
-            )
+            st.metric(label="**Retention Probability**", 
+                      value=f"{score:.1%}",
+                      delta="Strong Hire Potential" if is_strong else "Further Review Recommended",
+                      delta_color="normal" if is_strong else "inverse")
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
-            top_skills = skills_df[skills_df['Confidence'] > 0.35].head(8)
+            top_skills = skills_df[skills_df['Confidence'] > 0.30].head(10)
             if not top_skills.empty:
-                fig = px.bar(top_skills, x="Skill", y="Confidence", 
-                            text_auto='.1%', color="Confidence",
-                            color_continuous_scale="Blues")
-                fig.update_layout(height=380, xaxis_title="", yaxis_title="Confidence")
-                st.plotly_chart(fig, use_container_width=True)
+                cols = st.columns(4)
+                for i, row in enumerate(top_skills.itertuples()):
+                    cols[i % 4].markdown(f"<span class='skill-pill'>{row.Skill}</span>", unsafe_allow_html=True)
             else:
-                st.info("No strong skills detected.")
+                st.info("No strong skills detected from our skill database.")
 
         st.divider()
-        with st.expander("📄 Resume Preview", expanded=False):
-            st.write(resume_text[:1500] + "..." if len(resume_text) > 1500 else resume_text)
+
+        # Resume Preview
+        st.subheader("📄 Resume Preview")
+        st.markdown(f"""
+        <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; line-height: 1.7;">
+        {resume_text}
+        </div>
+        """, unsafe_allow_html=True)
 
     elif analyze_btn:
         st.warning("Please provide resume content.")
