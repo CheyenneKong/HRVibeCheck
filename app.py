@@ -10,7 +10,7 @@ st.markdown("""
     <style>
     .stMetric { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     .skill-pill { background-color: #3b82f6; color: white; padding: 8px 18px; border-radius: 25px; margin: 4px; display: inline-block; }
-    .seniority-box { background-color: #6366f1; color: white; padding: 15px; border-radius: 10px; font-weight: bold; }
+    .seniority-box { background-color: #6366f1; color: white; padding: 18px; border-radius: 10px; font-size: 1.1em; font-weight: bold; }
     .resume-box { background-color: #0f172a; color: #e2e8f0; padding: 25px; border-radius: 12px; line-height: 1.8; }
     </style>
     """, unsafe_allow_html=True)
@@ -18,17 +18,19 @@ st.markdown("""
 # ==================== LOAD PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_pipelines():
+    # Pipeline 1: Fine-tuned Hire Recommendation
     pipe1 = pipeline("text-classification", 
                     model="Cheykong/HRVibeCheck-Retention-Predictor", 
                     device=-1)
     
+    # Pipeline 2: Skills (DeBERTa)
     pipe2 = pipeline("zero-shot-classification", 
                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
                     device=-1)
     
-    # Pipeline 3: Seniority / Experience Level
+    # Pipeline 3: Seniority / Experience Level (Lighter model)
     pipe3 = pipeline("zero-shot-classification", 
-                    model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
+                    model="cross-encoder/nli-MiniLM2-L6-H768", 
                     device=-1)
     
     return pipe1, pipe2, pipe3
@@ -83,7 +85,6 @@ def main():
 
     if analyze_btn and resume_text:
         with st.spinner("Analyzing resume..."):
-            # Pipeline 1: Hire Recommendation
             p1 = pipe1(resume_text[:512])[0]
             score = p1['score']
             is_strong = score > 0.55
@@ -94,11 +95,11 @@ def main():
             p2 = pipe2(resume_text[:1000], skill_labels, multi_label=True)
             top_skills = [label for label, sc in zip(p2['labels'], p2['scores']) if sc > 0.35][:8]
 
-            # Pipeline 3: Candidate Seniority / Experience Level
+            # Pipeline 3: Seniority Level
             seniority_labels = ["Senior Level (7+ years)", "Mid Level (3-6 years)", 
                                "Junior Level (0-2 years)", "Entry Level / Fresh Graduate"]
             p3 = pipe3(resume_text[:1500], seniority_labels, multi_label=False)
-            predicted_seniority = p3['labels'][0]
+            predicted_level = p3['labels'][0]
             confidence = p3['scores'][0]
 
         st.success("✅ Analysis Complete!")
@@ -111,14 +112,12 @@ def main():
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
-            if top_skills:
-                for skill in top_skills:
-                    st.markdown(f"<span class='skill-pill'>{skill}</span>", unsafe_allow_html=True)
+            for skill in top_skills:
+                st.markdown(f"<span class='skill-pill'>{skill}</span>", unsafe_allow_html=True)
 
         st.divider()
-
         st.subheader("📊 Candidate Seniority / Experience Level")
-        st.markdown(f"<div class='seniority-box'>Predicted Level: {predicted_seniority} ({confidence:.1%} confidence)</div>", 
+        st.markdown(f"<div class='seniority-box'>Predicted: {predicted_level}<br>Confidence: {confidence:.1%}</div>", 
                    unsafe_allow_html=True)
 
         st.divider()
