@@ -23,19 +23,14 @@ def load_pipelines():
                     model="Cheykong/HRVibeCheck-Retention-Predictor", 
                     device=-1)
     
-    # Pipeline 2: Skills (DeBERTa)
-    pipe2 = pipeline("zero-shot-classification", 
-                    model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
-                    device=-1)
+    # Pipeline 2 & 3: Using the same stable zero-shot model
+    pipe23 = pipeline("zero-shot-classification", 
+                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
+                     device=-1)
     
-    # Pipeline 3: Seniority / Experience Level (Lighter model)
-    pipe3 = pipeline("zero-shot-classification", 
-                    model="cross-encoder/nli-MiniLM2-L6-H768", 
-                    device=-1)
-    
-    return pipe1, pipe2, pipe3
+    return pipe1, pipe23
 
-pipe1, pipe2, pipe3 = load_pipelines()
+pipe1, pipe23 = load_pipelines()
 
 def extract_text_from_file(uploaded_file):
     try:
@@ -57,7 +52,9 @@ def main():
         st.markdown("""
         **Hire Recommendation Score** (0–100%) represents our AI’s confidence in recommending a candidate for hire.
 
-        **How it is calculated**: Fine-tuned on real Hire vs Reject decisions.  
+        **How it is calculated**: The model was fine-tuned on real historical hiring decisions (`Hire` vs `Reject`).  
+        It analyzes the resume and compares it against patterns of previously successful candidates.
+
         **Score Interpretation**:
         | Score Range     | Recommendation       | Meaning |
         |-----------------|----------------------|--------|
@@ -85,20 +82,21 @@ def main():
 
     if analyze_btn and resume_text:
         with st.spinner("Analyzing resume..."):
+            # Pipeline 1: Hire Recommendation Score
             p1 = pipe1(resume_text[:512])[0]
             score = p1['score']
             is_strong = score > 0.55
 
-            # Pipeline 2: Skills
+            # Pipeline 2: Top Skills
             skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
                            "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
-            p2 = pipe2(resume_text[:1000], skill_labels, multi_label=True)
+            p2 = pipe23(resume_text[:1000], skill_labels, multi_label=True)
             top_skills = [label for label, sc in zip(p2['labels'], p2['scores']) if sc > 0.35][:8]
 
-            # Pipeline 3: Seniority Level
-            seniority_labels = ["Senior Level (7+ years)", "Mid Level (3-6 years)", 
+            # Pipeline 3: Candidate Seniority / Experience Level
+            seniority_labels = ["Senior Level (5+ years)", "Mid Level (2-5 years)", 
                                "Junior Level (0-2 years)", "Entry Level / Fresh Graduate"]
-            p3 = pipe3(resume_text[:1500], seniority_labels, multi_label=False)
+            p3 = pipe23(resume_text[:1500], seniority_labels, multi_label=False)
             predicted_level = p3['labels'][0]
             confidence = p3['scores'][0]
 
@@ -112,13 +110,21 @@ def main():
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
-            for skill in top_skills:
-                st.markdown(f"<span class='skill-pill'>{skill}</span>", unsafe_allow_html=True)
+            if top_skills:
+                for skill in top_skills:
+                    st.markdown(f"<span class='skill-pill'>{skill}</span>", unsafe_allow_html=True)
+            else:
+                st.info("No strong skills detected.")
 
         st.divider()
+
         st.subheader("📊 Candidate Seniority / Experience Level")
-        st.markdown(f"<div class='seniority-box'>Predicted: {predicted_level}<br>Confidence: {confidence:.1%}</div>", 
-                   unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class='seniority-box'>
+            Predicted Level: {predicted_level}<br>
+            Confidence: {confidence:.1%}
+        </div>
+        """, unsafe_allow_html=True)
 
         st.divider()
         st.subheader("📄 Resume Preview")
