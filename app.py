@@ -70,4 +70,70 @@ def main():
 
     # --- SIDEBAR ---
     st.sidebar.header("📥 Candidate Input")
-    candidate_name = st.sidebar.text_input("Candidate Name", "John
+    candidate_name = st.sidebar.text_input("Candidate Name", "John Doe")
+
+    st.sidebar.subheader("Resume")
+    uploaded_resume = st.sidebar.file_uploader("Upload PDF or Word", type=["pdf", "docx"])
+    resume_manual = st.sidebar.text_area("Or paste resume text here", height=150)
+
+    st.sidebar.subheader("Job Description (Optional)")
+    jd_text = st.sidebar.text_area("Paste Job Description", height=120, 
+                                   placeholder="Optional: Helps improve context...")
+
+    resume_content = ""
+    if uploaded_resume:
+        resume_content = extract_text_from_file(uploaded_resume)
+    else:
+        resume_content = resume_manual
+
+    run_button = st.sidebar.button("🚀 Analyze Candidate", type="primary")
+
+    # --- MAIN ANALYSIS ---
+    if run_button:
+        if not resume_content:
+            st.warning("⚠️ Please upload a resume or paste resume text.")
+        else:
+            with st.status("Analyzing candidate...", expanded=True) as status:
+                # Pipeline 1: Retention Prediction
+                status.write("Running Retention Prediction (Pipeline 1)...")
+                input_text = resume_content[:512]  # DistilBERT limit
+                retention_result = grader_pipe(input_text)[0]
+
+                # Pipeline 2: Skills Extraction
+                status.write("Extracting key skills (Pipeline 2)...")
+                entities = extractor_pipe(resume_content[:1000])
+
+                status.update(label="Analysis Complete!", state="complete", expanded=False)
+
+            # --- RESULTS ---
+            st.subheader(f"📊 Analysis for: {candidate_name}")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                label = retention_result['label']
+                score = retention_result['score']
+                is_hire = label in ["LABEL_1", "HIRE", "positive"]
+
+                st.metric(
+                    label="Retention / Hire Probability",
+                    value=f"{score:.1%}",
+                    delta="HIGH RETENTION POTENTIAL" if is_hire else "REVIEW RECOMMENDED",
+                    delta_color="normal" if is_hire else "inverse"
+                )
+
+            with col2:
+                st.write("**Extracted Key Skills**")
+                skills = [e['word'] for e in entities if e['entity_group'] in ['ORG', 'MISC']]
+                unique_skills = list(set(skills))
+                if unique_skills:
+                    for skill in unique_skills[:8]:
+                        st.success(f"• {skill}")
+                else:
+                    st.write("No major skills detected.")
+
+            st.divider()
+            st.write("**Resume Preview:**")
+            st.info(resume_content[:800] + "..." if len(resume_content) > 800 else resume_content)
+
+if __name__ == "__main__":
+    main()
