@@ -49,21 +49,18 @@ def main():
         st.markdown("""
         **Hire Recommendation Score** (0–100%) represents our AI’s confidence in recommending a candidate for hire.
 
-        **How it is calculated**:
-        - The model was **fine-tuned** on real historical hiring decisions (`Hire` vs `Reject`) from the dataset.
-        - It analyzes the full resume text and compares patterns against previously successful vs unsuccessful candidates.
-        - The score reflects how closely the candidate matches the profile of candidates who were hired and performed well.
+        **How it is calculated**:  
+        The model was fine-tuned on real historical hiring decisions (`Hire` vs `Reject`). It analyzes the resume and compares it against patterns of previously successful candidates.
 
         **Score Interpretation**:
         | Score Range     | Recommendation          | Meaning |
         |-----------------|-------------------------|--------|
-        | **75% – 100%**  | **Strong Hire**         | Excellent fit. High confidence of success and retention. |
-        | **60% – 74%**   | **Good Hire**           | Solid candidate. Worth advancing to interview. |
-        | **45% – 59%**   | **Moderate Fit**        | Potential with some concerns. Further evaluation needed. |
-        | **Below 45%**   | **Further Review**      | High risk. May not be the best match for this role. |
+        | **75% – 100%**  | **Strong Hire**         | Excellent fit. High confidence of success. |
+        | **60% – 74%**   | **Good Hire**           | Solid candidate. Worth interviewing. |
+        | **45% – 59%**   | **Moderate Fit**        | Potential, but needs further evaluation. |
+        | **Below 45%**   | **Further Review**      | High risk. Not recommended at this stage. |
         """)
 
-    # Sidebar and rest of the app remains the same...
     with st.sidebar:
         st.header("Candidate Information")
         candidate_name = st.text_input("Candidate Name", "John Doe")
@@ -96,9 +93,12 @@ def main():
 
         col1, col2 = st.columns([1.2, 2])
         with col1:
-            st.metric("**Hire Recommendation Score**", f"{score:.1%}",
-                      delta="Strong Hire" if is_strong else "Further Review",
-                      delta_color="normal" if is_strong else "inverse")
+            st.metric(
+                label="**Hire Recommendation Score**",
+                value=f"{score:.1%}",
+                delta="Strong Hire" if is_strong else "Further Review",
+                delta_color="normal" if is_strong else "inverse"
+            )
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
