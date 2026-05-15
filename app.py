@@ -15,7 +15,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# ==================== LOAD 3 PIPELINES ====================
+# ==================== LOAD PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_pipelines():
     # Pipeline 1: Hire Recommendation
@@ -28,8 +28,8 @@ def load_pipelines():
                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
                     device=-1)
     
-    # Pipeline 3: Summarization (Strong & Stable)
-    pipe3 = pipeline("summarization", 
+    # Pipeline 3: Summarization using text2text-generation (more stable)
+    pipe3 = pipeline("text2text-generation", 
                     model="google-t5/t5-small", 
                     device=-1)
     
@@ -57,7 +57,7 @@ def main():
         st.markdown("""
         - **Pipeline 1**: Hire Recommendation Score (Fine-tuned)  
         - **Pipeline 2**: Automatic Skill Extraction  
-        - **Pipeline 3**: Professional Resume Summarization (T5-Small)
+        - **Pipeline 3**: Professional Resume Summarization (T5)
         """)
 
     with st.sidebar:
@@ -90,8 +90,10 @@ def main():
             skills_df = pd.DataFrame({"Skill": p2['labels'], "Confidence": p2['scores']})
             top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
 
-            # Pipeline 3 - Summarization
-            summary = pipe3(resume_text[:1500], max_length=180, min_length=60, do_sample=False)[0]['summary_text']
+            # Pipeline 3 - Summarization using text2text-generation
+            input_text = "summarize: " + resume_text[:1500]
+            summary_output = pipe3(input_text, max_length=180, min_length=60, do_sample=False)
+            summary = summary_output[0]['generated_text']
 
         st.success("✅ Full Analysis Complete!")
 
