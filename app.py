@@ -7,11 +7,15 @@ import pandas as pd
 
 st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
 
+# Modern Dark-Friendly Styling
 st.markdown("""
     <style>
-    .big-metric { font-size: 3.5rem !important; font-weight: bold; }
-    .stMetric { background-color: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-    .skill-pill { background-color: #0f172a; color: white; padding: 8px 16px; border-radius: 20px; margin: 4px; display: inline-block; }
+    .stMetric { background-color: #1e2937; padding: 20px; border-radius: 12px; }
+    .big-number { font-size: 3.8rem !important; font-weight: bold; }
+    .skill-pill { background-color: #3b82f6; color: white; padding: 8px 18px; 
+                  border-radius: 25px; margin: 4px; display: inline-block; font-weight: 500; }
+    .resume-box { background-color: #0f172a; color: #e2e8f0; padding: 25px; 
+                  border-radius: 12px; line-height: 1.8; white-space: pre-wrap; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -41,7 +45,7 @@ def extract_text_from_file(uploaded_file):
 
 def main():
     st.title("👔 HRVibeCheck")
-    st.caption("AI-Powered Resume Screening • Retention Prediction + Skills Intelligence")
+    st.caption("AI-Powered Resume Screening • Retention + Skills Intelligence")
 
     with st.expander("📘 What is Retention Probability?", expanded=True):
         st.markdown("""
@@ -68,14 +72,16 @@ def main():
         resume_text = manual_text
 
     if analyze_btn and resume_text:
-        with st.spinner("Analyzing resume..."):
+        with st.spinner("Analyzing resume with AI..."):
             ret_result = retention_pipe(resume_text[:512])[0]
             score = ret_result['score']
             is_strong = score > 0.55
 
-            skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
-                           "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
-            skill_result = skill_pipe(resume_text[:1000], skill_labels, multi_label=True)
+            # Improved skill detection
+            skill_labels = ["Python", "Java", "SQL", "Machine Learning", "AWS", "Docker", 
+                           "Kubernetes", "Leadership", "Project Management", "Data Analysis", 
+                           "PyTorch", "Communication", "Excel", "Power BI"]
+            skill_result = skill_pipe(resume_text[:1200], skill_labels, multi_label=True)
             
             skills_df = pd.DataFrame({
                 "Skill": skill_result['labels'],
@@ -84,18 +90,19 @@ def main():
 
         st.success("✅ Analysis Complete!")
 
-        # Main Display
-        col1, col2 = st.columns([1.2, 2])
+        col1, col2 = st.columns([1.1, 2])
         
         with col1:
-            st.metric(label="**Retention Probability**", 
-                      value=f"{score:.1%}",
-                      delta="Strong Hire Potential" if is_strong else "Further Review Recommended",
-                      delta_color="normal" if is_strong else "inverse")
+            st.metric(
+                label="**Retention Probability**",
+                value=f"{score:.1%}",
+                delta="Strong Hire Potential" if is_strong else "Further Review Recommended",
+                delta_color="normal" if is_strong else "inverse"
+            )
 
         with col2:
             st.subheader("🔑 Top Skills Detected")
-            top_skills = skills_df[skills_df['Confidence'] > 0.30].head(10)
+            top_skills = skills_df[skills_df['Confidence'] > 0.35].head(12)
             if not top_skills.empty:
                 cols = st.columns(4)
                 for i, row in enumerate(top_skills.itertuples()):
@@ -105,10 +112,10 @@ def main():
 
         st.divider()
 
-        # Resume Preview
+        # Better Resume Preview
         st.subheader("📄 Resume Preview")
         st.markdown(f"""
-        <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; line-height: 1.7;">
+        <div class="resume-box">
         {resume_text}
         </div>
         """, unsafe_allow_html=True)
