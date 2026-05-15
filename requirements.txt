@@ -1,7 +1,6 @@
-streamlit
-transformers=4.40.0
-torch
-pandas
-numpy
+streamlit>=1.38.0
+transformers>=4.45.0
+torch>=2.0.0
 PyPDF2
 python-docx
+huggingface_hub
