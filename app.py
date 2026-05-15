@@ -15,7 +15,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# ==================== LOAD STABLE PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_pipelines():
     pipe1 = pipeline("text-classification", 
@@ -48,11 +47,23 @@ def main():
 
     with st.expander("📘 What is Hire Recommendation Score?", expanded=True):
         st.markdown("""
-        **Hire Recommendation Score** is our AI’s prediction of how likely a candidate is to be a **strong hire**.  
-        It was trained on real historical hiring decisions (Hire vs Reject).  
-        Higher score = Higher predicted success & better overall fit.
+        **Hire Recommendation Score** (0–100%) represents our AI’s confidence in recommending a candidate for hire.
+
+        **How it is calculated**:
+        - The model was **fine-tuned** on real historical hiring decisions (`Hire` vs `Reject`) from the dataset.
+        - It analyzes the full resume text and compares patterns against previously successful vs unsuccessful candidates.
+        - The score reflects how closely the candidate matches the profile of candidates who were hired and performed well.
+
+        **Score Interpretation**:
+        | Score Range     | Recommendation          | Meaning |
+        |-----------------|-------------------------|--------|
+        | **75% – 100%**  | **Strong Hire**         | Excellent fit. High confidence of success and retention. |
+        | **60% – 74%**   | **Good Hire**           | Solid candidate. Worth advancing to interview. |
+        | **45% – 59%**   | **Moderate Fit**        | Potential with some concerns. Further evaluation needed. |
+        | **Below 45%**   | **Further Review**      | High risk. May not be the best match for this role. |
         """)
 
+    # Sidebar and rest of the app remains the same...
     with st.sidebar:
         st.header("Candidate Information")
         candidate_name = st.text_input("Candidate Name", "John Doe")
@@ -71,12 +82,10 @@ def main():
 
     if analyze_btn and resume_text:
         with st.spinner("Analyzing resume..."):
-            # Pipeline 1
             p1 = pipe1(resume_text[:512])[0]
             score = p1['score']
             is_strong = score > 0.55
 
-            # Pipeline 2 - Skills
             skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
                            "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
             p2 = pipe2(resume_text[:1000], skill_labels, multi_label=True)
