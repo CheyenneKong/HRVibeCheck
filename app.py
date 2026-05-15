@@ -15,10 +15,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# ==================== LOAD ALL 3 PIPELINES ====================
+# ==================== LOAD 3 PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_pipelines():
-    # Pipeline 1: Hire Recommendation (Fine-tuned)
+    # Pipeline 1: Hire Recommendation
     pipe1 = pipeline("text-classification", 
                     model="Cheykong/HRVibeCheck-Retention-Predictor", 
                     device=-1)
@@ -28,9 +28,9 @@ def load_pipelines():
                     model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0", 
                     device=-1)
     
-    # Pipeline 3: Resume Summarization
+    # Pipeline 3: Summarization (Lighter & More Stable Model)
     pipe3 = pipeline("summarization", 
-                    model="facebook/bart-large-cnn", 
+                    model="sshleifer/distilbart-cnn-12-6",   # Much lighter than bart-large-cnn
                     device=-1)
     
     return pipe1, pipe2, pipe3
@@ -55,7 +55,7 @@ def main():
 
     with st.expander("📘 About Our AI System", expanded=True):
         st.markdown("""
-        - **Pipeline 1**: Hire Recommendation Score (Fine-tuned Model)  
+        - **Pipeline 1**: Hire Recommendation Score (Fine-tuned)  
         - **Pipeline 2**: Automatic Skill Extraction  
         - **Pipeline 3**: Professional Resume Summarization
         """)
@@ -80,23 +80,22 @@ def main():
     if analyze_btn and resume_text:
         with st.spinner("Running all 3 AI pipelines..."):
             # Pipeline 1
-            p1_result = pipe1(resume_text[:512])[0]
-            score = p1_result['score']
+            p1 = pipe1(resume_text[:512])[0]
+            score = p1['score']
             is_strong = score > 0.55
 
             # Pipeline 2 - Skills
             skill_labels = ["Python", "SQL", "Machine Learning", "AWS", "Docker", "Kubernetes", 
-                           "Leadership", "Project Management", "Data Analysis", "PyTorch"]
-            p2_result = pipe2(resume_text[:1000], skill_labels, multi_label=True)
-            skills_df = pd.DataFrame({"Skill": p2_result['labels'], "Confidence": p2_result['scores']})
+                           "Leadership", "Project Management", "Data Analysis", "PyTorch", "Communication"]
+            p2 = pipe2(resume_text[:1000], skill_labels, multi_label=True)
+            skills_df = pd.DataFrame({"Skill": p2['labels'], "Confidence": p2['scores']})
             top_skills = skills_df[skills_df['Confidence'] > 0.35].head(10)
 
             # Pipeline 3 - Summarization
-            summary = pipe3(resume_text[:2000], max_length=180, min_length=60, do_sample=False)[0]['summary_text']
+            summary = pipe3(resume_text[:2000], max_length=160, min_length=50, do_sample=False)[0]['summary_text']
 
         st.success("✅ Full Analysis Complete!")
 
-        # Results Layout
         col1, col2 = st.columns([1.2, 2])
         with col1:
             st.metric(
@@ -114,9 +113,7 @@ def main():
                     cols[i % 4].markdown(f"<span class='skill-pill'>{row.Skill}</span>", unsafe_allow_html=True)
 
         st.divider()
-
-        # Pipeline 3 Result
-        st.subheader("📝 AI-Generated Professional Summary")
+        st.subheader("📝 AI Professional Summary")
         st.info(summary)
 
         st.divider()
