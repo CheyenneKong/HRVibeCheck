@@ -72,7 +72,7 @@ def extract_text_from_file(uploaded_file):
         return ""
 
 def get_hire_score(resume_text: str, jd_text: str) -> float:
-    """Pipeline 1 with balanced heuristic for differentiation."""
+    """Pipeline 1 with stricter heuristic for better differentiation."""
     combined = f"JOB DESCRIPTION: {jd_text} [SEP] RESUME: {resume_text}"
     result = pipe1(combined[:512])[0]
    
@@ -84,20 +84,30 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     else:
         base_score = 1 - score
     
-    # Heuristic boost
     resume_lower = resume_text.lower()
     boost = 0.0
     
-    if any(kw in resume_lower for kw in ["data scientist", "machine learning", "deep learning", "pytorch", "tensorflow", "aws", "sagemaker"]):
-        boost += 0.42
-    elif any(kw in resume_lower for kw in ["python", "sql", "analytics"]):
-        boost += 0.22
+    # === STRICTER BOOST ===
+    # Very strong DS keywords
+    strong_ds = ["data scientist", "machine learning", "deep learning", "pytorch", "tensorflow", 
+                 "sagemaker", "mlops", "bert", "neural network"]
+    if any(kw in resume_lower for kw in strong_ds):
+        boost += 0.48
     
-    if any(kw in resume_lower for kw in ["senior", "led", "6 years"]):
-        boost += 0.15
+    # General tech / analyst keywords (weaker boost)
+    general_tech = ["python", "aws", "sql", "spark", "xgboost"]
+    if any(kw in resume_lower for kw in general_tech):
+        boost += 0.18
     
-    if any(kw in resume_lower for kw in ["accountant", "auditing", "tax", "financial reporting"]):
-        boost -= 0.28
+    # Experience level
+    if any(kw in resume_lower for kw in ["senior", "led", "6 years", "lead team"]):
+        boost += 0.12
+    
+    # Heavy penalty for non-relevant background
+    non_ds = ["accountant", "auditing", "tax", "financial reporting", "chartered accountant", 
+              "marketing analyst", "digital marketing"]
+    if any(kw in resume_lower for kw in non_ds):
+        boost -= 0.35
     
     final_score = min(0.97, base_score + boost)
     return final_score
