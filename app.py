@@ -126,11 +126,6 @@ def main():
         st.markdown("""
         **Hire Score Explanation (for HR Professionals)**
 
-        The score combines:
-        - Fine-tuned AI model (semantic matching between JD and Resume)
-        - Boost for relevant Data Science / ML keywords and senior experience
-        - **Strong penalty** for mismatched backgrounds (HR, Accounting, Marketing Analyst, etc.)
-
         **Score Guide**:
         - ≥ 85% → Strong Hire — SELECT
         - 65–84% → Good Hire — SELECT
