@@ -39,7 +39,7 @@ def load_pipelines():
         device=0 if torch.cuda.is_available() else -1
     )
    
-    # Pipeline 2: Skill Extraction (Best performing model)
+    # Pipeline 2: Skill Extraction
     pipe2 = pipeline(
         "token-classification",
         model="algiraldohe/lm-ner-linkedin-skills-recognition",
@@ -72,7 +72,7 @@ def extract_text_from_file(uploaded_file):
         return ""
 
 def get_hire_score(resume_text: str, jd_text: str) -> float:
-    """Pipeline 1: Return hire probability (0-1) with balanced heuristic."""
+    """Pipeline 1 with balanced heuristic for differentiation."""
     combined = f"JOB DESCRIPTION: {jd_text} [SEP] RESUME: {resume_text}"
     result = pipe1(combined[:512])[0]
    
@@ -84,7 +84,7 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     else:
         base_score = 1 - score
     
-    # Balanced heuristic boost
+    # Heuristic boost
     resume_lower = resume_text.lower()
     boost = 0.0
     
@@ -96,7 +96,6 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     if any(kw in resume_lower for kw in ["senior", "led", "6 years"]):
         boost += 0.15
     
-    # Penalty for irrelevant background
     if any(kw in resume_lower for kw in ["accountant", "auditing", "tax", "financial reporting"]):
         boost -= 0.28
     
@@ -171,4 +170,87 @@ def main():
     # Analysis
     if analyze_btn:
         if not jd_text.strip():
-            st.warning("⚠
+            st.warning("⚠️ Please enter a Job Description.")
+            st.stop()
+        if not uploaded_files:
+            st.warning("⚠️ Please upload at least one resume.")
+            st.stop()
+
+        results = []
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        start_time = time.time()
+
+        for i, uploaded_file in enumerate(uploaded_files):
+            candidate_name = uploaded_file.name.replace(".pdf", "").replace(".docx", "")
+            status_text.text(f"🔍 Analyzing {candidate_name}... ({i+1}/{len(uploaded_files)})")
+
+            resume_text = extract_text_from_file(uploaded_file)
+           
+            if resume_text and len(resume_text.strip()) > 50:
+                hire_score = get_hire_score(resume_text, jd_text)
+                skills = extract_skills(resume_text)
+               
+                results.append({
+                    "Candidate": candidate_name,
+                    "Hire Score": hire_score,
+                    "Score %": f"{hire_score:.1%}",
+                    "Recommendation": get_recommendation(hire_score),
+                    "Key Skills": skills,
+                    "Resume Text": resume_text
+                })
+            else:
+                st.warning(f"⚠️ Could not extract meaningful text from {uploaded_file.name}")
+
+            progress_bar.progress((i + 1) / len(uploaded_files))
+
+        # Finalize
+        elapsed = time.time() - start_time
+        status_text.empty()
+        progress_bar.empty()
+
+        if not results:
+            st.error("No resumes could be processed.")
+            st.stop()
+
+        results.sort(key=lambda x: x["Hire Score"], reverse=True)
+        st.success(f"✅ Analysis Complete! {len(results)} candidate(s) processed in {elapsed:.1f} seconds.")
+
+        # Rankings Table
+        st.subheader("🏆 Candidate Rankings")
+        table_data = [{
+            "Rank": f"#{rank}",
+            "Candidate": r["Candidate"],
+            "Hire Score": r["Score %"],
+            "Recommendation": r["Recommendation"],
+            "Key Skills": ", ".join([s["name"] for s in r["Key Skills"]]) if r["Key Skills"] else "—"
+        } for rank, r in enumerate(results, 1)]
+
+        st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
+
+        # Detailed Cards
+        st.subheader("📋 Detailed Analysis")
+        for rank, r in enumerate(results, 1):
+            with st.expander(f"#{rank} — {r['Candidate']} | {r['Score %']} | {r['Recommendation']}", expanded=(rank == 1)):
+                col1, col2 = st.columns([1, 2])
+                with col1:
+                    st.metric("Hire Score", r["Score %"])
+                    st.write(f"**Recommendation:** {r['Recommendation']}")
+                with col2:
+                    st.write("**Extracted Key Skills:**")
+                    if r["Key Skills"]:
+                        skill_html = " ".join([
+                            f"<span class='skill-pill' title='{s['category']}'>{s['name']}</span>"
+                            for s in r["Key Skills"]
+                        ])
+                        st.markdown(skill_html, unsafe_allow_html=True)
+                    else:
+                        st.info("No high-confidence skills detected.")
+
+                st.divider()
+                st.write("**Resume Preview:**")
+                preview = r["Resume Text"][:700] + "..." if len(r["Resume Text"]) > 700 else r["Resume Text"]
+                st.text_area("", preview, height=200, disabled=True)
+
+if __name__ == "__main__":
+    main()
