@@ -70,7 +70,6 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     boost = 0.0
     penalty = 0.0
    
-    # Positive Boost (kept moderate)
     if any(kw in resume_lower for kw in ["data scientist", "machine learning", "deep learning", "pytorch", "tensorflow", "sagemaker", "mlops"]):
         boost += 0.38
     elif any(kw in resume_lower for kw in ["python", "aws", "sql", "analytics"]):
@@ -79,15 +78,39 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     if any(kw in resume_lower for kw in ["senior", "lead", "led", "6 years", "7 years"]):
         boost += 0.10
    
-    # === STRONGER PENALTY ===
+    # Stronger Penalty
     mismatch = ["human resources", "hr manager", "recruitment", "payroll", "accountant", 
                 "auditing", "tax", "financial reporting", "marketing analyst", 
                 "business intelligence analyst", "hr specialist"]
     if any(kw in resume_lower for kw in mismatch):
-        penalty -= 0.52   # Increased from 0.42 to 0.52
-    
+        penalty -= 0.52   # Strong penalty
+   
     final_score = min(0.96, max(0.05, base_score + boost + penalty))
     return final_score
+
+def extract_skills(resume_text: str):
+    try:
+        entities = pipe2(resume_text[:1500])
+        skills = []
+        seen = set()
+        for e in entities:
+            word = e.get('word', '').strip()
+            if e.get('score', 0) > 0.75 and len(word) > 1 and word.lower() not in seen:
+                skills.append({"name": word, "category": e.get('entity_group', 'SKILL')})
+                seen.add(word.lower())
+        return skills[:15]
+    except:
+        return []
+
+def get_recommendation(score: float):
+    if score >= 0.85:
+        return "✅ Strong Hire — SELECT"
+    elif score >= 0.65:
+        return "👍 Good Hire — SELECT"
+    elif score >= 0.45:
+        return "⚠️ Moderate Fit — Consider"
+    else:
+        return "❌ Further Review / Reject"
 
 # ==================== MAIN APP ====================
 def main():
@@ -113,33 +136,18 @@ def main():
 
     with st.sidebar:
         st.header("📋 Job Description")
-        
-        # New: JD File Upload
-        jd_file = st.file_uploader("Upload Job Description (PDF or Word)", 
-                                  type=["pdf", "docx"], 
-                                  key="jd_uploader")
-        
-        jd_text = ""
-        if jd_file is not None:
-            jd_text = extract_text_from_file(jd_file)
-            st.success(f"✅ Loaded JD from: {jd_file.name}")
-        else:
-            jd_text = st.text_area("Or paste the full Job Description here", 
-                                 height=200, 
-                                 placeholder="We are looking for a Senior Data Scientist...")
+        jd_text = st.text_area("Paste the full Job Description", height=250, placeholder="We are looking for a Senior Data Scientist...")
 
         st.divider()
         st.header("📄 Upload Resumes")
-        uploaded_files = st.file_uploader("Upload Candidate Resumes (PDF or Word)", 
-                                        type=["pdf", "docx"], 
-                                        accept_multiple_files=True)
+        uploaded_files = st.file_uploader("Upload PDF or Word files (multiple allowed)", type=["pdf", "docx"], accept_multiple_files=True)
 
         st.divider()
         analyze_btn = st.button("🚀 Analyze Candidates", type="primary", use_container_width=True)
 
     if analyze_btn:
         if not jd_text.strip():
-            st.warning("⚠️ Please upload a JD file or paste the Job Description.")
+            st.warning("⚠️ Please enter a Job Description.")
             st.stop()
         if not uploaded_files:
             st.warning("⚠️ Please upload at least one resume.")
