@@ -36,6 +36,24 @@ It solves a major pain point in recruitment: **manual resume review is time-cons
 | **P2**   | Skill Extraction (NER)      | `algiraldohe/lm-ner-linkedin-skills-recognition`     | Token Classification    | ✅ Best performer |
 
 ---
+## 📁 Sample Resumes for Testing
+
+We prepared **10 diverse sample resumes** to demonstrate the model's accuracy:
+
+- **Good Fit (Strong Hire)**: 3 resumes (Senior DS / ML Engineer level)
+- **Medium Fit**: 3–4 resumes
+- **Poor Fit / No Fit**: 3–4 resumes
+
+**Folder**: [`samples/`](samples/)
+
+**How to test**:
+1. Use the **Senior Data Scientist** Job Description in the app
+2. Upload resumes from the `samples/` folder
+3. Expected differentiation is clearly visible in rankings
+
+All samples are realistic and anonymized.
+
+---
 
 ## 🚀 Live Demo
 
