@@ -7,25 +7,44 @@ import torch
 import time
 import os
 
+# Suppress tokenizer warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-st.set_page_config(page_title="HRVibeCheck", page_icon="👔", layout="wide")
+st.set_page_config(
+    page_title="HRVibeCheck",
+    page_icon="👔",
+    layout="wide"
+)
 
-st.markdown("""<style>
-.main-header { font-size: 2.8rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0; }
-.sub-header { font-size: 1.1rem; color: #64748b; margin-bottom: 1.5rem; }
-.skill-pill { background-color: #3b82f6; color: white; padding: 6px 14px; border-radius: 30px; margin: 4px; display: inline-block; font-weight: 500; font-size: 0.85rem; }
-</style>""", unsafe_allow_html=True)
+st.markdown("""
+    <style>
+    .main-header { font-size: 2.8rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0; }
+    .sub-header { font-size: 1.1rem; color: #64748b; margin-bottom: 1.5rem; }
+    .skill-pill { background-color: #3b82f6; color: white; padding: 6px 14px; border-radius: 30px;
+                  margin: 4px; display: inline-block; font-weight: 500; font-size: 0.85rem; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ==================== LOAD PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models... This may take 20-40 seconds.")
 def load_pipelines():
-    pipe1 = pipeline("text-classification", model="Cheykong/HRVibeCheck-Hire-Recommendation-Model", device=0 if torch.cuda.is_available() else -1)
-    pipe2 = pipeline("token-classification", model="algiraldohe/lm-ner-linkedin-skills-recognition", aggregation_strategy="simple", device=0 if torch.cuda.is_available() else -1)
+    pipe1 = pipeline(
+        "text-classification",
+        model="Cheykong/HRVibeCheck-Hire-Recommendation-Model",
+        device=0 if torch.cuda.is_available() else -1
+    )
+    
+    pipe2 = pipeline(
+        "token-classification",
+        model="algiraldohe/lm-ner-linkedin-skills-recognition",
+        aggregation_strategy="simple",
+        device=0 if torch.cuda.is_available() else -1
+    )
     return pipe1, pipe2
 
 pipe1, pipe2 = load_pipelines()
 
+# Debug Info
 st.sidebar.success("✅ Model Loaded Successfully")
 st.sidebar.write("**Loaded Model:**", pipe1.model.config._name_or_path)
 
@@ -46,24 +65,30 @@ def extract_text_from_file(uploaded_file):
         return ""
 
 def get_hire_score(resume_text: str, jd_text: str) -> float:
-    """Stronger penalty version"""
+    """Stronger penalty version for better differentiation"""
     combined = f"JOB DESCRIPTION: {jd_text} [SEP] RESUME: {resume_text}"
     result = pipe1(combined[:512])[0]
+    
     label = result['label']
     score = result['score']
     base_score = score if label in ['LABEL_1', '1', 'POSITIVE', 'HIRE', 'hire'] else 1 - score
     
     resume_lower = resume_text.lower()
     boost = 0.0
-    if any(kw in resume_lower for kw in ["data scientist", "machine learning", "deep learning", "pytorch", "tensorflow", "sagemaker", "mlops"]):
+    
+    if any(kw in resume_lower for kw in ["data scientist", "machine learning", "deep learning", 
+                                         "pytorch", "tensorflow", "sagemaker", "mlops"]):
         boost += 0.38
     elif any(kw in resume_lower for kw in ["python", "aws", "sql", "analytics", "spark"]):
         boost += 0.16
+    
     if any(kw in resume_lower for kw in ["senior", "lead", "led", "6 years", "7 years"]):
         boost += 0.10
     
     penalty = 0.0
-    mismatch = ["human resources", "hr manager", "recruitment", "payroll", "accountant", "auditing", "tax", "financial reporting", "marketing analyst", "business intelligence analyst"]
+    mismatch = ["human resources", "hr manager", "recruitment", "payroll", "accountant", 
+                "auditing", "tax", "financial reporting", "marketing analyst", 
+                "business intelligence analyst"]
     if any(kw in resume_lower for kw in mismatch):
         penalty -= 0.42
     
@@ -85,10 +110,14 @@ def extract_skills(resume_text: str):
         return []
 
 def get_recommendation(score: float):
-    if score >= 0.85: return "✅ Strong Hire — SELECT"
-    elif score >= 0.65: return "👍 Good Hire — SELECT"
-    elif score >= 0.45: return "⚠️ Moderate Fit — Consider"
-    else: return "❌ Further Review / Reject"
+    if score >= 0.85:
+        return "✅ Strong Hire — SELECT"
+    elif score >= 0.65:
+        return "👍 Good Hire — SELECT"
+    elif score >= 0.45:
+        return "⚠️ Moderate Fit — Consider"
+    else:
+        return "❌ Further Review / Reject"
 
 # ==================== MAIN APP ====================
 def main():
@@ -96,38 +125,55 @@ def main():
     st.markdown("<p class='sub-header'>AI-Powered Resume Screening • Smart Hiring Assistant</p>", unsafe_allow_html=True)
 
     with st.expander("📘 How does HRVibeCheck work?", expanded=False):
-        st.markdown("**HRVibeCheck** uses two deep learning pipelines...")  # your original text
+        st.markdown("""
+        **HRVibeCheck** uses two deep learning pipelines:
+        - **Pipeline 1**: Fine-tuned transformer that compares Job Description vs Resume and gives a **Hire Score**.
+        - **Pipeline 2**: NER model that automatically extracts key skills from the resume.
+        """)
 
-    # ← Only new part
+    # Score Explanation Section
     with st.expander("📊 How is the Hire Score Calculated?", expanded=False):
         st.markdown("""
         **Hire Score Explanation (for HR Professionals)**
 
-        The score is calculated by our fine-tuned AI model + smart rules:
-        - Main score comes from semantic matching between JD and Resume
+        The score combines:
+        - Fine-tuned AI model (semantic matching between JD and Resume)
         - Boost for relevant Data Science / ML keywords and senior experience
-        - **Strong penalty** for mismatched backgrounds (HR, Accounting, Pure Marketing, etc.)
+        - **Strong penalty** for mismatched backgrounds (HR, Accounting, Marketing Analyst, etc.)
 
-        **Guide**: ≥85% = Strong Hire | 65-84% = Good Hire | 45-64% = Moderate | <45% = Reject
+        **Score Guide**:
+        - ≥ 85% → Strong Hire — SELECT
+        - 65–84% → Good Hire — SELECT
+        - 45–64% → Moderate Fit — Consider
+        - < 45% → Further Review / Reject
         """)
 
-    # [Rest of your original main() function remains 100% unchanged]
+    # Sidebar
     with st.sidebar:
         st.header("📋 Job Description")
-        jd_text = st.text_area("Paste the full Job Description", height=250, placeholder="We are looking for a Senior Data Scientist...")
+        jd_text = st.text_area(
+            "Paste the full Job Description",
+            height=250,
+            placeholder="We are looking for a Senior Data Scientist..."
+        )
         
         st.divider()
         st.header("📄 Upload Resumes")
-        uploaded_files = st.file_uploader("Upload PDF or Word files (multiple allowed)", type=["pdf", "docx"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader(
+            "Upload PDF or Word files (multiple allowed)",
+            type=["pdf", "docx"],
+            accept_multiple_files=True
+        )
         
         st.divider()
         analyze_btn = st.button("🚀 Analyze Candidates", type="primary", use_container_width=True)
 
     if analyze_btn:
-        # ... (your original analysis code) ...
-        # I kept this part exactly the same as your last working version
-        if not jd_text.strip() or not uploaded_files:
-            st.warning("Please provide JD and resumes.")
+        if not jd_text.strip():
+            st.warning("⚠️ Please enter a Job Description.")
+            st.stop()
+        if not uploaded_files:
+            st.warning("⚠️ Please upload at least one resume.")
             st.stop()
 
         results = []
@@ -137,12 +183,14 @@ def main():
 
         for i, uploaded_file in enumerate(uploaded_files):
             candidate_name = uploaded_file.name.replace(".pdf", "").replace(".docx", "")
-            status_text.text(f"Analyzing {candidate_name}...")
+            status_text.text(f"🔍 Analyzing {candidate_name}... ({i+1}/{len(uploaded_files)})")
 
             resume_text = extract_text_from_file(uploaded_file)
+            
             if resume_text and len(resume_text.strip()) > 50:
                 hire_score = get_hire_score(resume_text, jd_text)
                 skills = extract_skills(resume_text)
+                
                 results.append({
                     "Candidate": candidate_name,
                     "Hire Score": hire_score,
@@ -151,17 +199,28 @@ def main():
                     "Key Skills": skills,
                     "Resume Text": resume_text
                 })
+
             progress_bar.progress((i + 1) / len(uploaded_files))
 
         elapsed = time.time() - start_time
-        results.sort(key=lambda x: x["Hire Score"], reverse=True)
-        st.success(f"✅ Analysis Complete! {len(results)} candidates in {elapsed:.1f}s")
+        status_text.empty()
+        progress_bar.empty()
 
-        # Rankings Table & Detailed Cards (exactly your original)
+        results.sort(key=lambda x: x["Hire Score"], reverse=True)
+        st.success(f"✅ Analysis Complete! {len(results)} candidate(s) processed in {elapsed:.1f} seconds.")
+
+        # Rankings Table
         st.subheader("🏆 Candidate Rankings")
-        table_data = [{ "Rank": f"#{rank}", "Candidate": r["Candidate"], "Hire Score": r["Score %"], "Recommendation": r["Recommendation"], "Key Skills": ", ".join([s["name"] for s in r["Key Skills"]]) if r["Key Skills"] else "—" } for rank, r in enumerate(results, 1)]
+        table_data = [{
+            "Rank": f"#{rank}",
+            "Candidate": r["Candidate"],
+            "Hire Score": r["Score %"],
+            "Recommendation": r["Recommendation"],
+            "Key Skills": ", ".join([s["name"] for s in r["Key Skills"]]) if r["Key Skills"] else "—"
+        } for rank, r in enumerate(results, 1)]
         st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
 
+        # Detailed Analysis
         st.subheader("📋 Detailed Analysis")
         for rank, r in enumerate(results, 1):
             with st.expander(f"#{rank} — {r['Candidate']} | {r['Score %']} | {r['Recommendation']}", expanded=(rank == 1)):
@@ -172,8 +231,13 @@ def main():
                 with col2:
                     st.write("**Extracted Key Skills:**")
                     if r["Key Skills"]:
-                        skill_html = " ".join([f"<span class='skill-pill' title='{s['category']}'>{s['name']}</span>" for s in r["Key Skills"]])
+                        skill_html = " ".join([
+                            f"<span class='skill-pill' title='{s['category']}'>{s['name']}</span>"
+                            for s in r["Key Skills"]
+                        ])
                         st.markdown(skill_html, unsafe_allow_html=True)
+                    else:
+                        st.info("No high-confidence skills detected.")
                 st.divider()
                 st.write("**Resume Preview:**")
                 preview = r["Resume Text"][:700] + "..." if len(r["Resume Text"]) > 700 else r["Resume Text"]
