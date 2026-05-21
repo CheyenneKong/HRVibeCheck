@@ -78,12 +78,11 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     if any(kw in resume_lower for kw in ["senior", "lead", "led", "6 years", "7 years"]):
         boost += 0.10
    
-    # Stronger Penalty
     mismatch = ["human resources", "hr manager", "recruitment", "payroll", "accountant", 
                 "auditing", "tax", "financial reporting", "marketing analyst", 
                 "business intelligence analyst", "hr specialist"]
     if any(kw in resume_lower for kw in mismatch):
-        penalty -= 0.52   # Strong penalty
+        penalty -= 0.52
    
     final_score = min(0.96, max(0.05, base_score + boost + penalty))
     return final_score
@@ -136,18 +135,29 @@ def main():
 
     with st.sidebar:
         st.header("📋 Job Description")
-        jd_text = st.text_area("Paste the full Job Description", height=250, placeholder="We are looking for a Senior Data Scientist...")
+        
+        # JD Upload (as requested)
+        jd_file = st.file_uploader("📄 Upload Job Description (PDF or Word)", 
+                                  type=["pdf", "docx"], key="jd_upload")
+        
+        if jd_file is not None:
+            jd_text = extract_text_from_file(jd_file)
+            st.success(f"✅ JD loaded: {jd_file.name}")
+        else:
+            jd_text = st.text_area("Or paste the full Job Description", height=180, 
+                                 placeholder="We are looking for a Senior Data Scientist...")
 
         st.divider()
         st.header("📄 Upload Resumes")
-        uploaded_files = st.file_uploader("Upload PDF or Word files (multiple allowed)", type=["pdf", "docx"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("Upload Candidate Resumes (PDF or Word)", 
+                                        type=["pdf", "docx"], accept_multiple_files=True)
 
         st.divider()
         analyze_btn = st.button("🚀 Analyze Candidates", type="primary", use_container_width=True)
 
     if analyze_btn:
         if not jd_text.strip():
-            st.warning("⚠️ Please enter a Job Description.")
+            st.warning("⚠️ Please upload a JD file or paste the Job Description.")
             st.stop()
         if not uploaded_files:
             st.warning("⚠️ Please upload at least one resume.")
