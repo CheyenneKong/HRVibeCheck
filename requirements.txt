@@ -3,6 +3,4 @@ transformers
 torch
 PyPDF2
 python-docx
-huggingface_hub
-pillow
-plotly
+pandas
