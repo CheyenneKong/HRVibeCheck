@@ -13,7 +13,7 @@
 It solves a major pain point in recruitment: **manual resume review is time-consuming and subjective**. This application uses deep learning to provide fast, consistent, and data-driven hiring recommendations.
 
 **Target Company**: HR-related agency / consultancy (AI Talent Acquisition Platform)  
-**Website**: [https://hrvibecheck.com](https://hrvibecheck.com) *(fictional for project)*
+**Website**: [https://hrvibecheck.streamlit.app/](https://hrvibecheck.streamlit.app/) *(fictional for project)*
 
 ---
 
