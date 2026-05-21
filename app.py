@@ -15,30 +15,27 @@ st.set_page_config(
     page_icon="👔",
     layout="wide"
 )
+
 st.markdown("""
     <style>
     .main-header { font-size: 2.8rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0; }
     .sub-header { font-size: 1.1rem; color: #64748b; margin-bottom: 1.5rem; }
     .skill-pill { background-color: #3b82f6; color: white; padding: 6px 14px; border-radius: 30px;
                   margin: 4px; display: inline-block; font-weight: 500; font-size: 0.85rem; }
-    .rank-badge { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: white;
-                  padding: 4px 12px; border-radius: 20px; font-weight: 700; }
-    .score-box { background-color: white; padding: 20px; border-radius: 16px;
-                 box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
 # ==================== LOAD PIPELINES ====================
 @st.cache_resource(show_spinner="Loading AI Models... This may take 20-40 seconds.")
 def load_pipelines():
-    # Pipeline 1: Fine-tuned Hire Recommendation Model
+    # Pipeline 1: Your Latest Fine-tuned Model
     pipe1 = pipeline(
         "text-classification",
-        model="Cheykong/HRVibeCheck-Hire-Recommendation-Model",   # ← Change only if your HF username/repo is different
+        model="Cheykong/HRVibeCheck-Hire-Recommendation-Model",  # ← Your latest model
         device=0 if torch.cuda.is_available() else -1
     )
     
-    # Pipeline 2: Skill Extraction (Best performing model)
+    # Pipeline 2: Skill Extraction
     pipe2 = pipeline(
         "token-classification",
         model="algiraldohe/lm-ner-linkedin-skills-recognition",
@@ -49,9 +46,13 @@ def load_pipelines():
 
 pipe1, pipe2 = load_pipelines()
 
+# ==================== DEBUG INFO ====================
+st.sidebar.success("✅ Model Loaded Successfully")
+st.sidebar.write("**Loaded Model:**")
+st.sidebar.write(pipe1.model.config._name_or_path)
+
 # ==================== HELPER FUNCTIONS ====================
 def extract_text_from_file(uploaded_file):
-    """Extract text from PDF or DOCX with better error handling."""
     try:
         if uploaded_file.type == "application/pdf":
             pdf_reader = PyPDF2.PdfReader(uploaded_file)
@@ -74,29 +75,26 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     label = result['label']
     score = result['score']
     
-    # Handle common label formats from fine-tuned models
-    if label in ['LABEL_1', '1', 'POSITIVE', 'HIRE', 'hire']:
+    # Improved label handling for fine-tuned models
+    positive_labels = ['LABEL_1', '1', 'POSITIVE', 'HIRE', 'hire', 'positive']
+    if label in positive_labels or '1' in label:
         return score
     else:
         return 1 - score
 
 def extract_skills(resume_text: str):
-    """Pipeline 2: Extract high-confidence skills."""
     try:
         entities = pipe2(resume_text[:1500])
         skills = []
         seen = set()
-        
         for e in entities:
             word = e['word'].strip()
             score = e.get('score', 0)
             label = e.get('entity_group', 'SKILL')
-            
             if score > 0.75 and len(word) > 1 and word.lower() not in seen:
                 skills.append({"name": word, "category": label})
                 seen.add(word.lower())
-        
-        return skills[:15]  # limit to top 15
+        return skills[:15]
     except:
         return []
 
@@ -118,10 +116,8 @@ def main():
     with st.expander("📘 How does HRVibeCheck work?", expanded=False):
         st.markdown("""
         **HRVibeCheck** uses two deep learning pipelines:
-        - **Pipeline 1**: Fine-tuned transformer that compares Job Description vs Resume and gives a **Hire Score**.
-        - **Pipeline 2**: NER model that automatically extracts key skills from the resume.
-        
-        This helps recruiters screen candidates faster and more objectively.
+        - **Pipeline 1**: Fine-tuned transformer that compares Job Description vs Resume
+        - **Pipeline 2**: NER model that automatically extracts key skills
         """)
 
     # Sidebar
@@ -138,8 +134,7 @@ def main():
         uploaded_files = st.file_uploader(
             "Upload PDF or Word files (multiple allowed)",
             type=["pdf", "docx"],
-            accept_multiple_files=True,
-            help="You can upload several candidate resumes at once"
+            accept_multiple_files=True
         )
         
         st.divider()
@@ -182,7 +177,6 @@ def main():
 
             progress_bar.progress((i + 1) / len(uploaded_files))
 
-        # Finalize
         elapsed = time.time() - start_time
         status_text.empty()
         progress_bar.empty()
@@ -206,7 +200,7 @@ def main():
 
         st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
 
-        # Detailed Cards
+        # Detailed Analysis
         st.subheader("📋 Detailed Analysis")
         for rank, r in enumerate(results, 1):
             with st.expander(f"#{rank} — {r['Candidate']} | {r['Score %']} | {r['Recommendation']}", expanded=(rank == 1)):
