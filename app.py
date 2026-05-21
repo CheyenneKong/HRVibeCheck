@@ -61,28 +61,28 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     """Stronger penalty with better differentiation"""
     combined = f"JOB DESCRIPTION: {jd_text} [SEP] RESUME: {resume_text}"
     result = pipe1(combined[:512])[0]
-    
+   
     label = result['label']
     score = result['score']
     base_score = score if label in ['LABEL_1', '1', 'POSITIVE', 'HIRE', 'hire'] else 1 - score
-    
+   
     resume_lower = resume_text.lower()
     boost = 0.0
     penalty = 0.0
-    
+   
     if any(kw in resume_lower for kw in ["data scientist", "machine learning", "deep learning", "pytorch", "tensorflow", "sagemaker", "mlops"]):
         boost += 0.38
     elif any(kw in resume_lower for kw in ["python", "aws", "sql", "analytics"]):
         boost += 0.16
-    
+   
     if any(kw in resume_lower for kw in ["senior", "lead", "led", "6 years", "7 years"]):
         boost += 0.10
-    
-    mismatch = ["human resources", "hr manager", "recruitment", "payroll", "accountant", 
+   
+    mismatch = ["human resources", "hr manager", "recruitment", "payroll", "accountant",
                 "auditing", "tax", "financial reporting", "marketing analyst", "business intelligence analyst"]
     if any(kw in resume_lower for kw in mismatch):
         penalty -= 0.42
-    
+   
     final_score = min(0.96, max(0.08, base_score + boost + penalty))
     return final_score
 
@@ -125,7 +125,6 @@ def main():
     with st.expander("📊 How is the Hire Score Calculated?", expanded=False):
         st.markdown("""
         **Hire Score Explanation (for HR Professionals)**
-
         **Score Guide**:
         - ≥ 85% → Strong Hire — SELECT
         - 65–84% → Good Hire — SELECT
@@ -135,18 +134,33 @@ def main():
 
     with st.sidebar:
         st.header("📋 Job Description")
-        jd_text = st.text_area("Paste the full Job Description", height=250, placeholder="We are looking for a Senior Data Scientist...")
         
+        # New: JD File Upload
+        jd_file = st.file_uploader("Upload Job Description (PDF or Word)", 
+                                  type=["pdf", "docx"], 
+                                  key="jd_uploader")
+        
+        jd_text = ""
+        if jd_file is not None:
+            jd_text = extract_text_from_file(jd_file)
+            st.success(f"✅ Loaded JD from: {jd_file.name}")
+        else:
+            jd_text = st.text_area("Or paste the full Job Description here", 
+                                 height=200, 
+                                 placeholder="We are looking for a Senior Data Scientist...")
+
         st.divider()
         st.header("📄 Upload Resumes")
-        uploaded_files = st.file_uploader("Upload PDF or Word files (multiple allowed)", type=["pdf", "docx"], accept_multiple_files=True)
-        
+        uploaded_files = st.file_uploader("Upload Candidate Resumes (PDF or Word)", 
+                                        type=["pdf", "docx"], 
+                                        accept_multiple_files=True)
+
         st.divider()
         analyze_btn = st.button("🚀 Analyze Candidates", type="primary", use_container_width=True)
 
     if analyze_btn:
         if not jd_text.strip():
-            st.warning("⚠️ Please enter a Job Description.")
+            st.warning("⚠️ Please upload a JD file or paste the Job Description.")
             st.stop()
         if not uploaded_files:
             st.warning("⚠️ Please upload at least one resume.")
@@ -162,11 +176,11 @@ def main():
             status_text.text(f"🔍 Analyzing {candidate_name}... ({i+1}/{len(uploaded_files)})")
 
             resume_text = extract_text_from_file(uploaded_file)
-            
+           
             if resume_text and len(resume_text.strip()) > 50:
                 hire_score = get_hire_score(resume_text, jd_text)
                 skills = extract_skills(resume_text)
-                
+               
                 results.append({
                     "Candidate": candidate_name,
                     "Hire Score": hire_score,
