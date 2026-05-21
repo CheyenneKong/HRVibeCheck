@@ -39,8 +39,7 @@ It solves a major pain point in recruitment: **manual resume review is time-cons
 
 ## 🚀 Live Demo
 
-**Streamlit Cloud App**: [https://your-app-name.streamlit.app](https://your-app-name.streamlit.app)  
-*(Replace with your actual deployed URL)*
+**Streamlit Cloud App**: [https://hrvibecheck.streamlit.app/](https://hrvibecheck.streamlit.app/)  
 
 **Fine-tuned Model on Hugging Face**:  
 [https://huggingface.co/Cheykong/HRVibeCheck-Hire-Recommendation-Model](https://huggingface.co/Cheykong/HRVibeCheck-Hire-Recommendation-Model)
