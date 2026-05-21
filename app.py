@@ -65,7 +65,7 @@ def extract_text_from_file(uploaded_file):
         return ""
 
 def get_hire_score(resume_text: str, jd_text: str) -> float:
-    """Stronger penalty version for better differentiation"""
+    """Improved version with better differentiation for bad resumes"""
     combined = f"JOB DESCRIPTION: {jd_text} [SEP] RESUME: {resume_text}"
     result = pipe1(combined[:512])[0]
     
@@ -75,49 +75,44 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     
     resume_lower = resume_text.lower()
     boost = 0.0
+    penalty = 0.0
     
+    # Positive Boost
     if any(kw in resume_lower for kw in ["data scientist", "machine learning", "deep learning", 
                                          "pytorch", "tensorflow", "sagemaker", "mlops"]):
         boost += 0.38
-    elif any(kw in resume_lower for kw in ["python", "aws", "sql", "analytics", "spark"]):
+    elif any(kw in resume_lower for kw in ["python", "aws", "sql", "analytics"]):
         boost += 0.16
     
     if any(kw in resume_lower for kw in ["senior", "lead", "led", "6 years", "7 years"]):
         boost += 0.10
     
-    penalty = 0.0
-    mismatch = ["human resources", "hr manager", "recruitment", "payroll", "accountant", 
-                "auditing", "tax", "financial reporting", "marketing analyst", 
-                "business intelligence analyst"]
-    if any(kw in resume_lower for kw in mismatch):
-        penalty -= 0.42
+    # Stronger + Variable Penalty
+    mismatch_keywords = {
+        "human resources": -0.40,
+        "hr manager": -0.45,
+        "recruitment": -0.38,
+        "accountant": -0.42,
+        "auditing": -0.40,
+        "tax": -0.40,
+        "financial reporting": -0.43,
+        "marketing analyst": -0.37,
+        "business intelligence": -0.35
+    }
     
-    final_score = min(0.96, max(0.08, base_score + boost + penalty))
+    for kw, pen in mismatch_keywords.items():
+        if kw in resume_lower:
+            penalty += pen   # different penalties for different mismatches
+            break
+    
+    # Small variation based on resume content
+    if len(resume_text) < 800:          # very short resume
+        penalty -= 0.05
+    if "manager" in resume_lower and "hr" in resume_lower:
+        penalty -= 0.08
+    
+    final_score = min(0.96, max(0.05, base_score + boost + penalty))
     return final_score
-
-def extract_skills(resume_text: str):
-    try:
-        entities = pipe2(resume_text[:1500])
-        skills = []
-        seen = set()
-        for e in entities:
-            word = e.get('word', '').strip()
-            if e.get('score', 0) > 0.75 and len(word) > 1 and word.lower() not in seen:
-                skills.append({"name": word, "category": e.get('entity_group', 'SKILL')})
-                seen.add(word.lower())
-        return skills[:15]
-    except:
-        return []
-
-def get_recommendation(score: float):
-    if score >= 0.85:
-        return "✅ Strong Hire — SELECT"
-    elif score >= 0.65:
-        return "👍 Good Hire — SELECT"
-    elif score >= 0.45:
-        return "⚠️ Moderate Fit — Consider"
-    else:
-        return "❌ Further Review / Reject"
 
 # ==================== MAIN APP ====================
 def main():
