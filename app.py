@@ -72,7 +72,7 @@ def extract_text_from_file(uploaded_file):
         return ""
 
 def get_hire_score(resume_text: str, jd_text: str) -> float:
-    """Pipeline 1 with stricter heuristic for better differentiation."""
+    """Stricter heuristic for better differentiation between Good / Medium / Bad."""
     combined = f"JOB DESCRIPTION: {jd_text} [SEP] RESUME: {resume_text}"
     result = pipe1(combined[:512])[0]
    
@@ -87,29 +87,27 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     resume_lower = resume_text.lower()
     boost = 0.0
     
-    # === STRICTER BOOST ===
-    # Very strong DS keywords
-    strong_ds = ["data scientist", "machine learning", "deep learning", "pytorch", "tensorflow", 
-                 "sagemaker", "mlops", "bert", "neural network"]
-    if any(kw in resume_lower for kw in strong_ds):
-        boost += 0.48
+    # === VERY STRICT BOOST ===
+    core_ds_keywords = ["data scientist", "machine learning", "deep learning", "pytorch", 
+                       "tensorflow", "sagemaker", "mlops", "bert", "neural network", "computer vision"]
+    if any(kw in resume_lower for kw in core_ds_keywords):
+        boost += 0.52   # Strong boost only for true DS roles
     
-    # General tech / analyst keywords (weaker boost)
-    general_tech = ["python", "aws", "sql", "spark", "xgboost"]
-    if any(kw in resume_lower for kw in general_tech):
+    supporting_keywords = ["aws", "python", "sql", "spark", "xgboost"]
+    if any(kw in resume_lower for kw in supporting_keywords):
         boost += 0.18
     
-    # Experience level
-    if any(kw in resume_lower for kw in ["senior", "led", "6 years", "lead team"]):
+    experience = ["senior", "led", "lead team", "6 years", "7 years"]
+    if any(kw in resume_lower for kw in experience):
         boost += 0.12
     
-    # Heavy penalty for non-relevant background
-    non_ds = ["accountant", "auditing", "tax", "financial reporting", "chartered accountant", 
-              "marketing analyst", "digital marketing"]
+    # === STRONGER PENALTIES ===
+    non_ds = ["human resources", "hr", "accountant", "auditing", "tax", "financial reporting", 
+              "recruitment", "employee relations", "payroll", "marketing analyst", "business intelligence analyst"]
     if any(kw in resume_lower for kw in non_ds):
-        boost -= 0.35
+        boost -= 0.40
     
-    final_score = min(0.97, base_score + boost)
+    final_score = min(0.97, max(0.20, base_score + boost))
     return final_score
 
 def extract_skills(resume_text: str):
