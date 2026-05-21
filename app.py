@@ -72,7 +72,7 @@ def extract_text_from_file(uploaded_file):
         return ""
 
 def get_hire_score(resume_text: str, jd_text: str) -> float:
-    """Stricter heuristic for better differentiation between Good / Medium / Bad."""
+    """Updated with better balance."""
     combined = f"JOB DESCRIPTION: {jd_text} [SEP] RESUME: {resume_text}"
     result = pipe1(combined[:512])[0]
    
@@ -87,53 +87,26 @@ def get_hire_score(resume_text: str, jd_text: str) -> float:
     resume_lower = resume_text.lower()
     boost = 0.0
     
-    # === VERY STRICT BOOST ===
-    core_ds_keywords = ["data scientist", "machine learning", "deep learning", "pytorch", 
-                       "tensorflow", "sagemaker", "mlops", "bert", "neural network", "computer vision"]
-    if any(kw in resume_lower for kw in core_ds_keywords):
-        boost += 0.52   # Strong boost only for true DS roles
+    if any(kw in resume_lower for kw in ["data scientist", "machine learning", "deep learning", "pytorch", "tensorflow", "sagemaker", "mlops"]):
+        boost += 0.48
+    elif any(kw in resume_lower for kw in ["python", "aws", "sql", "spark"]):
+        boost += 0.20
     
-    supporting_keywords = ["aws", "python", "sql", "spark", "xgboost"]
-    if any(kw in resume_lower for kw in supporting_keywords):
-        boost += 0.18
-    
-    experience = ["senior", "led", "lead team", "6 years", "7 years"]
-    if any(kw in resume_lower for kw in experience):
+    if any(kw in resume_lower for kw in ["senior", "led", "6 years", "7 years"]):
         boost += 0.12
     
-    # === STRONGER PENALTIES ===
-    non_ds = ["human resources", "hr", "accountant", "auditing", "tax", "financial reporting", 
-              "recruitment", "employee relations", "payroll", "marketing analyst", "business intelligence analyst"]
-    if any(kw in resume_lower for kw in non_ds):
-        boost -= 0.40
+    if any(kw in resume_lower for kw in ["accountant", "hr", "human resources", "auditing", "tax", "financial reporting", "recruitment"]):
+        boost -= 0.38
     
-    final_score = min(0.97, max(0.20, base_score + boost))
+    final_score = min(0.97, max(0.15, base_score + boost))
     return final_score
 
-def extract_skills(resume_text: str):
-    """Pipeline 2: Extract high-confidence skills."""
-    try:
-        entities = pipe2(resume_text[:1500])
-        skills = []
-        seen = set()
-       
-        for e in entities:
-            word = e['word'].strip()
-            score = e.get('score', 0)
-            label = e.get('entity_group', 'SKILL')
-           
-            if score > 0.75 and len(word) > 1 and word.lower() not in seen:
-                skills.append({"name": word, "category": label})
-                seen.add(word.lower())
-       
-        return skills[:15]
-    except:
-        return []
 
 def get_recommendation(score: float):
-    if score >= 0.75:
+    """Updated thresholds to match new score range"""
+    if score >= 0.85:
         return "✅ Strong Hire — SELECT"
-    elif score >= 0.60:
+    elif score >= 0.65:
         return "👍 Good Hire — SELECT"
     elif score >= 0.45:
         return "⚠️ Moderate Fit — Consider"
