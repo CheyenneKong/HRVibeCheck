@@ -15,7 +15,6 @@ st.set_page_config(
     page_icon="👔",
     layout="wide"
 )
-
 st.markdown("""
     <style>
     .main-header { font-size: 2.8rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0; }
