@@ -28,7 +28,7 @@ It solves a major pain point in recruitment: **manual resume review is time-cons
 
 ---
 
-## 🧠 Model Pipelines (Required for ISOM5240)
+## 🧠 Model Pipelines 
 
 | Pipeline | Task                        | Model ID                                              | Type                    | Status          |
 |----------|-----------------------------|-------------------------------------------------------|-------------------------|-----------------|
