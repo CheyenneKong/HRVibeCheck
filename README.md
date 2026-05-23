@@ -38,7 +38,7 @@ It solves a major pain point in recruitment: **manual resume review is time-cons
 ---
 ## 📁 Sample Resumes for Testing
 
-We prepared **10 diverse sample resumes** to demonstrate the model's accuracy:
+We prepared **3 sample resumes** to demonstrate the model's accuracy:
 
 - **Good Fit (Strong Hire)**: 3 resumes (Senior DS / ML Engineer level)
 - **Medium Fit**: 3–4 resumes
