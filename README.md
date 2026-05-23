@@ -40,9 +40,9 @@ It solves a major pain point in recruitment: **manual resume review is time-cons
 
 We prepared **3 sample resumes** to demonstrate the model's accuracy:
 
-- **Good Fit (Strong Hire)**: 3 resumes (Senior DS / ML Engineer level)
-- **Medium Fit**: 3–4 resumes
-- **Poor Fit / No Fit**: 3–4 resumes
+- **Good Fit (Strong Hire)**
+- **Medium Fit**
+- **Poor Fit / No Fit**
 
 **Folder**: [`samples/`](samples/)
 
