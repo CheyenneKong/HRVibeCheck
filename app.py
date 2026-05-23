@@ -65,23 +65,34 @@ def extract_text_from_file(uploaded_file):
         return ""
 
 def get_hire_score(resume_text: str, jd_text: str) -> float:
-    """Return raw fine-tuned BERT probability for the positive (Hire) class.
-
-    Score = P(LABEL_1 | JD [SEP] Resume) directly from the fine-tuned model.
-    No keyword boosting or penalties — the model's training already accounts
-    for skill / domain relevance.
-    """
+    """Stronger penalty for better differentiation"""
     combined = f"JOB DESCRIPTION: {jd_text} [SEP] RESUME: {resume_text}"
     result = pipe1(combined[:512])[0]
-
+   
     label = result['label']
     score = result['score']
-
-    # Map model's predicted-class probability to P(Hire)
-    if label in ['LABEL_1', '1', 'POSITIVE', 'HIRE', 'hire']:
-        return score
-    else:
-        return 1 - score
+    base_score = score if label in ['LABEL_1', '1', 'POSITIVE', 'HIRE', 'hire'] else 1 - score
+   
+    resume_lower = resume_text.lower()
+    boost = 0.0
+    penalty = 0.0
+   
+    if any(kw in resume_lower for kw in ["data scientist", "machine learning", "deep learning", "pytorch", "tensorflow", "sagemaker", "mlops"]):
+        boost += 0.38
+    elif any(kw in resume_lower for kw in ["python", "aws", "sql", "analytics"]):
+        boost += 0.16
+   
+    if any(kw in resume_lower for kw in ["senior", "lead", "led", "6 years", "7 years"]):
+        boost += 0.10
+   
+    mismatch = ["human resources", "hr manager", "recruitment", "payroll", "accountant", 
+                "auditing", "tax", "financial reporting", "marketing analyst", 
+                "business intelligence analyst", "hr specialist"]
+    if any(kw in resume_lower for kw in mismatch):
+        penalty -= 0.52
+   
+    final_score = min(0.96, max(0.05, base_score + boost + penalty))
+    return final_score
 
 def extract_skills(resume_text: str):
     try:
@@ -198,28 +209,15 @@ def main():
 
         st.subheader("🏆 Candidate Rankings")
 
-        def normalize_category(raw_cat):
-            """Match category names robustly (handles TECH, TECHNOLOGY, B-SOFT, etc.)."""
-            c = (raw_cat or "").upper().replace("B-", "").replace("I-", "").strip()
-            if not c or c == "O":
-                return "OTHER"
-            if "TECHNICAL" in c:
-                return "TECHNICAL"
-            if "TECHNOLOGY" in c or "TECH" in c:
-                return "TECHNOLOGY"
-            if "BUSINESS" in c or c.startswith("BUS"):
-                return "BUSINESS"
-            if "SOFT" in c:
-                return "SOFT"
-            return "OTHER"
-
         def summarize_skills_by_category(skill_list):
             """Format skills as 'Tech: 3 | Technical: 2 | Business: 1 | Soft: 4' for the table."""
             if not skill_list:
                 return "—"
             counts = {"TECHNOLOGY": 0, "TECHNICAL": 0, "BUSINESS": 0, "SOFT": 0, "OTHER": 0}
             for s in skill_list:
-                cat = normalize_category(s.get("category"))
+                cat = (s.get("category") or "OTHER").upper()
+                if cat not in counts:
+                    cat = "OTHER"
                 counts[cat] += 1
             short_labels = {"TECHNOLOGY": "Tech", "TECHNICAL": "Technical",
                             "BUSINESS": "Business", "SOFT": "Soft", "OTHER": "Other"}
@@ -245,24 +243,7 @@ def main():
                 with col2:
                     st.write("**Extracted Key Skills:**")
                     if r["Key Skills"]:
-                        # Robust category matching — handles full names (TECHNOLOGY, TECHNICAL,
-                        # BUSINESS, SOFT) AND abbreviated/BIO-tagged variants (TECH, BUS, B-TECHNOLOGY,
-                        # I-SOFT, etc.). Order matters: check TECHNICAL before TECH to avoid
-                        # misclassifying "TECHNICAL" as "TECHNOLOGY".
-                        def normalize_category(raw_cat):
-                            c = (raw_cat or "").upper().replace("B-", "").replace("I-", "").strip()
-                            if not c or c == "O":
-                                return "OTHER"
-                            if "TECHNICAL" in c:        # check before TECH
-                                return "TECHNICAL"
-                            if "TECHNOLOGY" in c or "TECH" in c:
-                                return "TECHNOLOGY"
-                            if "BUSINESS" in c or c.startswith("BUS"):
-                                return "BUSINESS"
-                            if "SOFT" in c:
-                                return "SOFT"
-                            return "OTHER"
-
+                        # Group skills by category
                         category_map = {
                             "TECHNOLOGY": {"label": "Technology", "css": "skill-tech"},
                             "TECHNICAL":  {"label": "Technical",  "css": "skill-technical"},
@@ -270,13 +251,13 @@ def main():
                             "SOFT":       {"label": "Soft Skills","css": "skill-soft"},
                         }
                         grouped = {"TECHNOLOGY": [], "TECHNICAL": [], "BUSINESS": [], "SOFT": [], "OTHER": []}
-                        raw_categories_seen = []  # for debug
                         for s in r["Key Skills"]:
-                            raw = s.get("category", "")
-                            raw_categories_seen.append(raw)
-                            cat = normalize_category(raw)
+                            cat = (s.get("category") or "OTHER").upper()
+                            if cat not in grouped:
+                                cat = "OTHER"
                             grouped[cat].append(s["name"])
 
+                        # Render each category in fixed order
                         rendered_any = False
                         for cat_key in ["TECHNOLOGY", "TECHNICAL", "BUSINESS", "SOFT"]:
                             items = grouped.get(cat_key, [])
@@ -291,6 +272,7 @@ def main():
                             )
                             st.markdown(pills_html, unsafe_allow_html=True)
 
+                        # Show any unclassified skills under a generic group
                         other_items = grouped.get("OTHER", [])
                         if other_items:
                             rendered_any = True
@@ -299,13 +281,6 @@ def main():
                                 [f"<span class='skill-pill skill-other'>{name}</span>" for name in other_items]
                             )
                             st.markdown(pills_html, unsafe_allow_html=True)
-
-                        # Debug: show raw entity_group values returned by the model.
-                        # Useful for verifying category labels match what the model produces.
-                        with st.expander("🔍 Debug: raw model categories", expanded=False):
-                            unique_raw = sorted(set(raw_categories_seen))
-                            st.write("Raw `entity_group` values returned for this candidate:")
-                            st.code(", ".join(unique_raw) if unique_raw else "(none)")
 
                         if not rendered_any:
                             st.info("No high-confidence skills detected.")
