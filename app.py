@@ -108,12 +108,12 @@ def extract_skills(resume_text: str):
     except:
         return []
 
-# ==================== NEW 3-TIER RECOMMENDATION ====================
+# ==================== UPDATED 3-TIER RECOMMENDATION ====================
 def get_recommendation(score: float):
     if score >= 0.85:
         return "✅ Strong Hire — SELECT"
     elif score >= 0.45:
-        return "⚠️ Further Review — CONSIDER"
+        return "⚠️ Further review — CONSIDER"
     else:
         return "❌ Reject"
 
@@ -125,8 +125,8 @@ def main():
     with st.expander("📘 How does HRVibeCheck work?", expanded=False):
         st.markdown("""
         **HRVibeCheck** uses two deep learning pipelines:
-        - **Pipeline 1**: Fine-tuned transformer that compares Job Description vs Resume and gives a **Hire Score** (0–100%).
-        - **Pipeline 2**: NER model that extracts key skills from the resume.
+        - **Pipeline 1**: Fine-tuned transformer (`bert-base-uncased`) that compares Job Description vs Resume and gives a **Hire Score** (0–100%), then maps it to a SELECT / Consider / Reject recommendation.
+        - **Pipeline 2**: NER model (`algiraldohe/lm-ner-linkedin-skills-recognition`) that automatically extracts key skills from the resume and groups them into **4 categories**.
         """)
 
     with st.expander("📊 How is the Hire Score Calculated?", expanded=False):
@@ -134,15 +134,67 @@ def main():
         **Hire Score Explanation (for HR Professionals)**  
         **Score Guide**:
 
-        * ≥ 85% → **Strong Hire — SELECT**
-        * 45–84% → **Further Review — CONSIDER**
-        * < 45% → **Reject**
+        * ≥ 85% → Strong Hire — SELECT
+        * 45–84% → Further review — CONSIDER
+        * < 45% → Reject
         """)
 
-    # ... [Rest of your sidebar and main logic remains the same] ...
+    with st.sidebar:
+        st.header("📋 Job Description")
+       
+        jd_file = st.file_uploader("📄 Upload Job Description (PDF or Word)",
+                                  type=["pdf", "docx"], key="jd_upload")
+       
+        if jd_file is not None:
+            jd_text = extract_text_from_file(jd_file)
+            st.success(f"✅ JD loaded: {jd_file.name}")
+        else:
+            jd_text = st.text_area("Or paste the full Job Description", height=180,
+                                 placeholder="We are looking for a Senior Data Scientist...")
+        
+        st.divider()
+        st.header("📄 Upload Resumes")
+        uploaded_files = st.file_uploader("Upload Candidate Resumes (PDF or Word)",
+                                        type=["pdf", "docx"], accept_multiple_files=True)
+        st.divider()
+        analyze_btn = st.button("🚀 Analyze Candidates", type="primary", use_container_width=True)
 
     if analyze_btn:
-        # ... existing analysis code ...
+        if not jd_text.strip():
+            st.warning("⚠️ Please upload a JD file or paste the Job Description.")
+            st.stop()
+        if not uploaded_files:
+            st.warning("⚠️ Please upload at least one resume.")
+            st.stop()
+
+        results = []
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        start_time = time.time()
+
+        for i, uploaded_file in enumerate(uploaded_files):
+            candidate_name = uploaded_file.name.replace(".pdf", "").replace(".docx", "")
+            status_text.text(f"🔍 Analyzing {candidate_name}... ({i+1}/{len(uploaded_files)})")
+
+            resume_text = extract_text_from_file(uploaded_file)
+          
+            if resume_text and len(resume_text.strip()) > 50:
+                hire_score = get_hire_score(resume_text, jd_text)
+                skills = extract_skills(resume_text)
+              
+                results.append({
+                    "Candidate": candidate_name,
+                    "Hire Score": hire_score,
+                    "Score %": f"{hire_score:.1%}",
+                    "Recommendation": get_recommendation(hire_score),
+                    "Key Skills": skills,
+                    "Resume Text": resume_text
+                })
+            progress_bar.progress((i + 1) / len(uploaded_files))
+
+        elapsed = time.time() - start_time
+        status_text.empty()
+        progress_bar.empty()
 
         results.sort(key=lambda x: x["Hire Score"], reverse=True)
 
@@ -150,7 +202,20 @@ def main():
 
         st.subheader("🏆 Candidate Rankings")
 
-        # Update table data to use new recommendation
+        def summarize_skills_by_category(skill_list):
+            if not skill_list:
+                return "—"
+            counts = {"TECHNOLOGY": 0, "TECHNICAL": 0, "BUSINESS": 0, "SOFT": 0, "OTHER": 0}
+            for s in skill_list:
+                cat = (s.get("category") or "OTHER").upper()
+                if cat not in counts:
+                    cat = "OTHER"
+                counts[cat] += 1
+            short_labels = {"TECHNOLOGY": "Tech", "TECHNICAL": "Technical",
+                            "BUSINESS": "Business", "SOFT": "Soft", "OTHER": "Other"}
+            parts = [f"{short_labels[k]}: {v}" for k, v in counts.items() if v > 0]
+            return " | ".join(parts)
+
         table_data = [{
             "Rank": f"#{rank}",
             "Candidate": r["Candidate"],
@@ -161,7 +226,55 @@ def main():
 
         st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
 
-        # ... rest of your detailed analysis code remains unchanged ...
+        st.subheader("📋 Detailed Analysis")
+        for rank, r in enumerate(results, 1):
+            with st.expander(f"#{rank} — {r['Candidate']} | {r['Score %']} | {r['Recommendation']}", expanded=(rank == 1)):
+                col1, col2 = st.columns([1, 2])
+                with col1:
+                    st.metric("Hire Score", r["Score %"])
+                    st.write(f"**Recommendation:** {r['Recommendation']}")
+                with col2:
+                    st.write("**Extracted Key Skills:**")
+                    if r["Key Skills"]:
+                        category_map = {
+                            "TECHNOLOGY": {"label": "Technology", "css": "skill-tech"},
+                            "TECHNICAL": {"label": "Technical", "css": "skill-technical"},
+                            "BUSINESS": {"label": "Business", "css": "skill-business"},
+                            "SOFT": {"label": "Soft Skills","css": "skill-soft"},
+                        }
+                        grouped = {"TECHNOLOGY": [], "TECHNICAL": [], "BUSINESS": [], "SOFT": [], "OTHER": []}
+                        for s in r["Key Skills"]:
+                            cat = (s.get("category") or "OTHER").upper()
+                            if cat not in grouped:
+                                cat = "OTHER"
+                            grouped[cat].append(s["name"])
+
+                        for cat_key in ["TECHNOLOGY", "TECHNICAL", "BUSINESS", "SOFT"]:
+                            items = grouped.get(cat_key, [])
+                            if not items:
+                                continue
+                            meta = category_map[cat_key]
+                            st.markdown(f"<div class='category-label'>🏷️ {meta['label']} ({len(items)})</div>",
+                                        unsafe_allow_html=True)
+                            pills_html = " ".join(
+                                [f"<span class='skill-pill {meta['css']}'>{name}</span>" for name in items]
+                            )
+                            st.markdown(pills_html, unsafe_allow_html=True)
+
+                        other_items = grouped.get("OTHER", [])
+                        if other_items:
+                            st.markdown("<div class='category-label'>🏷️ Other</div>", unsafe_allow_html=True)
+                            pills_html = " ".join(
+                                [f"<span class='skill-pill skill-other'>{name}</span>" for name in other_items]
+                            )
+                            st.markdown(pills_html, unsafe_allow_html=True)
+                    else:
+                        st.info("No high-confidence skills detected.")
+
+                st.divider()
+                st.write("**Resume Preview:**")
+                preview = r["Resume Text"][:700] + "..." if len(r["Resume Text"]) > 700 else r["Resume Text"]
+                st.text_area("", preview, height=200, disabled=True)
 
 if __name__ == "__main__":
     main()
