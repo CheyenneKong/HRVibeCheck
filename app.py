@@ -15,8 +15,15 @@ st.markdown("""
     <style>
     .main-header { font-size: 2.8rem; font-weight: 700; color: #1e3a8a; margin-bottom: 0; }
     .sub-header { font-size: 1.1rem; color: #64748b; margin-bottom: 1.5rem; }
-    .skill-pill { background-color: #3b82f6; color: white; padding: 6px 14px; border-radius: 30px;
+    .skill-pill { color: white; padding: 6px 14px; border-radius: 30px;
                   margin: 4px; display: inline-block; font-weight: 500; font-size: 0.85rem; }
+    .skill-tech { background-color: #2563eb; }        /* blue — TECHNOLOGY */
+    .skill-technical { background-color: #0891b2; }   /* cyan — TECHNICAL */
+    .skill-business { background-color: #7c3aed; }    /* purple — BUSINESS */
+    .skill-soft { background-color: #ea580c; }        /* orange — SOFT */
+    .skill-other { background-color: #64748b; }       /* gray — fallback */
+    .category-label { font-weight: 600; color: #1e293b; margin-top: 12px; margin-bottom: 4px;
+                      font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -119,8 +126,12 @@ def main():
     with st.expander("📘 How does HRVibeCheck work?", expanded=False):
         st.markdown("""
         **HRVibeCheck** uses two deep learning pipelines:
-        - **Pipeline 1**: Fine-tuned transformer that compares Job Description vs Resume and gives a **Hire Score**.
-        - **Pipeline 2**: NER model that automatically extracts key skills from the resume.
+        - **Pipeline 1**: Fine-tuned transformer (`bert-base-uncased`) that compares Job Description vs Resume and gives a **Hire Score** (0–100%), then maps it to a SELECT / Consider / Reject recommendation.
+        - **Pipeline 2**: NER model (`algiraldohe/lm-ner-linkedin-skills-recognition`) that automatically extracts key skills from the resume and groups them into **4 categories**:
+            - 🟦 **TECHNOLOGY** — concrete tools, languages, platforms (e.g., Python, AWS, Tableau)
+            - 🟦 **TECHNICAL** — methods and disciplines (e.g., machine learning, statistical analysis)
+            - 🟪 **BUSINESS** — domain & operational skills (e.g., project management, budget management)
+            - 🟧 **SOFT** — interpersonal skills (e.g., communication, leadership)
         """)
 
     with st.expander("📊 How is the Hire Score Calculated?", expanded=False):
@@ -197,12 +208,28 @@ def main():
         st.success(f"✅ Analysis Complete! {len(results)} candidate(s) processed in {elapsed:.1f} seconds.")
 
         st.subheader("🏆 Candidate Rankings")
+
+        def summarize_skills_by_category(skill_list):
+            """Format skills as 'Tech: 3 | Technical: 2 | Business: 1 | Soft: 4' for the table."""
+            if not skill_list:
+                return "—"
+            counts = {"TECHNOLOGY": 0, "TECHNICAL": 0, "BUSINESS": 0, "SOFT": 0, "OTHER": 0}
+            for s in skill_list:
+                cat = (s.get("category") or "OTHER").upper()
+                if cat not in counts:
+                    cat = "OTHER"
+                counts[cat] += 1
+            short_labels = {"TECHNOLOGY": "Tech", "TECHNICAL": "Technical",
+                            "BUSINESS": "Business", "SOFT": "Soft", "OTHER": "Other"}
+            parts = [f"{short_labels[k]}: {v}" for k, v in counts.items() if v > 0]
+            return " | ".join(parts)
+
         table_data = [{
             "Rank": f"#{rank}",
             "Candidate": r["Candidate"],
             "Hire Score": r["Score %"],
             "Recommendation": r["Recommendation"],
-            "Key Skills": ", ".join([s["name"] for s in r["Key Skills"]]) if r["Key Skills"] else "—"
+            "Skills by Category": summarize_skills_by_category(r["Key Skills"])
         } for rank, r in enumerate(results, 1)]
         st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
 
@@ -216,8 +243,47 @@ def main():
                 with col2:
                     st.write("**Extracted Key Skills:**")
                     if r["Key Skills"]:
-                        skill_html = " ".join([f"<span class='skill-pill' title='{s['category']}'>{s['name']}</span>" for s in r["Key Skills"]])
-                        st.markdown(skill_html, unsafe_allow_html=True)
+                        # Group skills by category
+                        category_map = {
+                            "TECHNOLOGY": {"label": "Technology", "css": "skill-tech"},
+                            "TECHNICAL":  {"label": "Technical",  "css": "skill-technical"},
+                            "BUSINESS":   {"label": "Business",   "css": "skill-business"},
+                            "SOFT":       {"label": "Soft Skills","css": "skill-soft"},
+                        }
+                        grouped = {"TECHNOLOGY": [], "TECHNICAL": [], "BUSINESS": [], "SOFT": [], "OTHER": []}
+                        for s in r["Key Skills"]:
+                            cat = (s.get("category") or "OTHER").upper()
+                            if cat not in grouped:
+                                cat = "OTHER"
+                            grouped[cat].append(s["name"])
+
+                        # Render each category in fixed order
+                        rendered_any = False
+                        for cat_key in ["TECHNOLOGY", "TECHNICAL", "BUSINESS", "SOFT"]:
+                            items = grouped.get(cat_key, [])
+                            if not items:
+                                continue
+                            rendered_any = True
+                            meta = category_map[cat_key]
+                            st.markdown(f"<div class='category-label'>🏷️ {meta['label']} ({len(items)})</div>",
+                                        unsafe_allow_html=True)
+                            pills_html = " ".join(
+                                [f"<span class='skill-pill {meta['css']}'>{name}</span>" for name in items]
+                            )
+                            st.markdown(pills_html, unsafe_allow_html=True)
+
+                        # Show any unclassified skills under a generic group
+                        other_items = grouped.get("OTHER", [])
+                        if other_items:
+                            rendered_any = True
+                            st.markdown("<div class='category-label'>🏷️ Other</div>", unsafe_allow_html=True)
+                            pills_html = " ".join(
+                                [f"<span class='skill-pill skill-other'>{name}</span>" for name in other_items]
+                            )
+                            st.markdown(pills_html, unsafe_allow_html=True)
+
+                        if not rendered_any:
+                            st.info("No high-confidence skills detected.")
                     else:
                         st.info("No high-confidence skills detected.")
                 st.divider()
